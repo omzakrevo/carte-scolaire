@@ -65,6 +65,7 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
     _baseScale =
         (frame.width / im.width) > (frame.height / im.height) ? frame.width / im.width : frame.height / im.height;
     final dw = im.width * _baseScale, dh = im.height * _baseScale;
+    setState(() {});
     _ctrl.value = Matrix4.identity()..translateByDouble(-(dw - frame.width) / 2, -(dh - frame.height) / 2, 0, 1);
   }
 
@@ -166,7 +167,7 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
               _tool(Icons.rotate_left, 'Pivoter', _busy ? null : () => _rotate(false)),
               _tool(Icons.rotate_right, 'Pivoter', _busy ? null : () => _rotate(true)),
               _tool(Icons.center_focus_strong, 'Recentrer',
-                  _busy || im == null ? null : () => setState(() => _center(_frame))),
+                  _busy || im == null ? null : () => _center(_frame)),
               FilledButton.icon(
                 onPressed: _busy || im == null ? null : _validate,
                 icon: const Icon(Icons.check),
