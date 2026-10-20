@@ -1,0 +1,29 @@
+name: carte_scolaire
+description: "Gestion et impression de cartes scolaires (modèles, import Excel, photos, planches A4)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  excel: ^4.0.6
+  archive: ^3.6.1
+  file_picker: ^8.1.2
+  image_picker: ^1.1.2
+  image: ^4.2.0
+  pdf: ^3.11.1
+  printing: ^5.13.4
+  screenshot: ^3.0.0
+  qr_flutter: ^4.1.0
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
