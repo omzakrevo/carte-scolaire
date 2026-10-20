@@ -3,14 +3,18 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'screens/photo_screen.dart';
+import 'screens/projects_screen.dart';
 import 'screens/print_screen.dart';
+import 'screens/security_screens.dart';
+import 'services/license.dart';
 import 'screens/students_screen.dart';
 import 'screens/template_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final state = AppState()..load();
-  runApp(AppScope(state: state, child: const CarteScolaireApp()));
+  final license = LicenseManager()..load();
+  runApp(LicenseScope(manager: license, child: AppScope(state: state, child: const CarteScolaireApp())));
 }
 
 bool get isDesktop =>
@@ -41,7 +45,7 @@ class CarteScolaireApp extends StatelessWidget {
         inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder(), isDense: true),
         cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero),
       ),
-      home: const HomeShell(),
+      home: const SecurityGate(),
     );
   }
 }
@@ -54,11 +58,12 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
+  int _index = 1;
 
   void goTo(int i) => setState(() => _index = i);
 
   static const _dest = [
+    (Icons.folder_outlined, Icons.folder, 'Projets'),
     (Icons.style_outlined, Icons.style, 'Modèle'),
     (Icons.groups_outlined, Icons.groups, 'Élèves'),
     (Icons.photo_camera_outlined, Icons.photo_camera, 'Photos'),
@@ -72,14 +77,16 @@ class _HomeShellState extends State<HomeShell> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = [
-      TemplateScreen(onNext: () => goTo(1)),
-      StudentsScreen(onNext: () => goTo(2)),
-      PhotoScreen(onGoToStudents: () => goTo(1), onNext: () => goTo(3)),
+      ProjectsScreen(onOpened: () => goTo(1)),
+      TemplateScreen(onNext: () => goTo(2)),
+      StudentsScreen(onNext: () => goTo(3)),
+      PhotoScreen(onGoToStudents: () => goTo(2), onNext: () => goTo(4)),
       const PrintScreen(),
     ];
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final stats = Text(
-      '${state.students.length} élèves · ${state.photoCount} photos · ${state.validatedCount} validées',
+      overflow: TextOverflow.ellipsis,
+      '${state.projectName} · ${state.students.length} élèves · ${state.photoCount} photos · ${state.validatedCount} validées',
       style: Theme.of(context).textTheme.bodySmall,
     );
 
@@ -94,7 +101,7 @@ class _HomeShellState extends State<HomeShell> {
             leading: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(children: [
-                Icon(Icons.badge, size: 32, color: Theme.of(context).colorScheme.primary),
+                const AppLogo(size: 40),
                 const SizedBox(height: 4),
                 Text('Carte\nScolaire',
                     textAlign: TextAlign.center,
@@ -116,7 +123,9 @@ class _HomeShellState extends State<HomeShell> {
                 child: Row(children: [
                   Text(_dest[_index].$3, style: Theme.of(context).textTheme.titleLarge),
                   const Spacer(),
-                  stats,
+                  Flexible(child: stats),
+                  const SizedBox(width: 12),
+                  const LicenseChip(),
                 ]),
               ),
               const Divider(height: 1),
@@ -132,6 +141,7 @@ class _HomeShellState extends State<HomeShell> {
           Text(_dest[_index].$3),
           stats,
         ]),
+        actions: const [Padding(padding: EdgeInsets.only(right: 8), child: LicenseChip())],
       ),
       body: body,
       bottomNavigationBar: NavigationBar(
@@ -141,6 +151,38 @@ class _HomeShellState extends State<HomeShell> {
           for (final (i, a, l) in _dest) NavigationDestination(icon: Icon(i), selectedIcon: Icon(a), label: l),
         ],
       ),
+    );
+  }
+}
+
+/// Mot de passe, verrouillage et première activation avant d'entrer dans l'application.
+class SecurityGate extends StatelessWidget {
+  const SecurityGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final lm = LicenseScope.of(context);
+    if (!lm.loaded) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!lm.hasPassword) return const SetupPasswordScreen();
+    if (!lm.unlocked) return const LockScreen();
+    if (!lm.welcomed) return const LicenseScreen(onboarding: true);
+    return const HomeShell();
+  }
+}
+
+/// Pastille « Licence / Essai » qui ouvre l'écran de licence.
+class LicenseChip extends StatelessWidget {
+  const LicenseChip({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final lm = LicenseScope.of(context);
+    final ok = lm.isLicensed;
+    return ActionChip(
+      avatar: Icon(ok ? Icons.verified : Icons.hourglass_bottom,
+          size: 18, color: ok ? const Color(0xFF0B6B3A) : const Color(0xFFB25E00)),
+      label: Text(ok ? 'Licence' : 'Version d\'essai'),
+      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LicenseScreen())),
     );
   }
 }

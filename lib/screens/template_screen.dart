@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,7 +6,10 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../designs/card_designs.dart';
 import '../models.dart';
+import '../services/license.dart';
 import '../services/photo_utils.dart';
+import '../services/template_package.dart';
+import 'layout_editor_screen.dart';
 import '../widgets/common.dart';
 
 const _swatches = <int>[
@@ -127,7 +129,12 @@ class _Preview extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 6))],
               ),
-              child: CardView(template: t, school: state.school, student: student, scale: 6),
+              child: CardView(
+                  template: t,
+                  school: state.school,
+                  student: student,
+                  scale: 6,
+                  watermark: LicenseScope.trialOf(context)),
             ),
           ),
         ),
@@ -392,6 +399,13 @@ class _EditorSection extends StatelessWidget {
         child: const Text('Réinitialiser'),
       ),
       children: [
+        FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LayoutEditorScreen())),
+          icon: const Icon(Icons.open_with),
+          label: const Text('Déplacer et redimensionner les éléments'),
+        ),
+        const SizedBox(height: 14),
         TextSetting(label: 'Titre de la carte', value: t.title, onChanged: (v) => set(() => t.title = v)),
         const SizedBox(height: 10),
         TextSetting(label: 'Texte avant l\'année', value: t.yearLabel, onChanged: (v) => set(() => t.yearLabel = v)),
@@ -528,16 +542,15 @@ class _SavedSection extends StatelessWidget {
   }
 
   Future<void> _export(BuildContext context, SavedTemplate s) async {
-    final bytes = Uint8List.fromList(utf8.encode(jsonEncode({'carteScolaireModele': 1, ...s.toJson()})));
     final safe = s.name.replaceAll(RegExp(r'[^\w\- ]'), '').trim().replaceAll(' ', '_');
     try {
       final path = await FilePicker.saveFile(
         dialogTitle: 'Exporter le modèle',
-        fileName: '${safe.isEmpty ? 'modele' : safe}.carte.json',
-        bytes: bytes,
-        mimeType: 'application/json',
+        fileName: '${safe.isEmpty ? 'modele' : safe}.zip',
+        bytes: exportTemplatePackage(s),
+        mimeType: 'application/zip',
       );
-      if (path != null && context.mounted) toast(context, 'Modèle « ${s.name} » exporté.');
+      if (path != null && context.mounted) toast(context, 'Modèle « ${s.name} » exporté (ZIP).');
     } catch (e) {
       if (context.mounted) toast(context, 'Export impossible : $e', error: true);
     }
@@ -545,17 +558,44 @@ class _SavedSection extends StatelessWidget {
 
   Future<void> _import(BuildContext context) async {
     try {
-      final bytes = (await pickOneFile(type: FileType.any))?.$2;
-      if (bytes == null) return;
-      final j = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      if (j['template'] == null) throw const FormatException();
-      final s = SavedTemplate.fromJson(j)..id = Student.newId();
-      state.savedTemplates.add(s);
+      final f = await pickOneFile(type: FileType.custom, extensions: const ['zip', 'json']);
+      if (f == null) return;
+      final s = await importTemplatePackage(f.$2, f.$1);
+      state.savedTemplates.insert(0, s);
       state.changed();
-      if (context.mounted) toast(context, 'Modèle « ${s.name} » importé.');
+      if (context.mounted) {
+        toast(context, 'Modèle « ${s.name} » ajouté à vos modèles. Touchez-le pour l\'appliquer.');
+      }
     } catch (_) {
-      if (context.mounted) toast(context, 'Ce fichier n\'est pas un modèle de carte (.carte.json).', error: true);
+      if (context.mounted) {
+        toast(context, 'Ce fichier n\'est pas un modèle de carte (ZIP exporté par l\'application ou .carte.json).',
+            error: true);
+      }
     }
+  }
+
+  Future<void> _apply(BuildContext context, SavedTemplate s) async {
+    var withSchool = false;
+    if (s.school != null) {
+      final r = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text('Appliquer « ${s.name} »'),
+          content:
+              const Text('Ce modèle contient aussi les infos d\'un établissement (logo, armoiries, cachet, textes). '
+                  'Voulez-vous les reprendre ?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
+            OutlinedButton(onPressed: () => Navigator.pop(c, false), child: const Text('Modèle seul')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Modèle + établissement')),
+          ],
+        ),
+      );
+      if (r == null) return;
+      withSchool = r;
+    }
+    state.applySaved(s, withSchool: withSchool);
+    if (context.mounted) toast(context, 'Modèle « ${s.name} » appliqué.');
   }
 
   @override
@@ -563,7 +603,7 @@ class _SavedSection extends StatelessWidget {
     final list = state.savedTemplates;
     return Section(
       title: 'Mes modèles',
-      subtitle: 'Enregistrez vos réglages pour chaque établissement et réutilisez-les',
+      subtitle: 'Enregistrez, exportez et importez des modèles complets (réglages, logo, armoiries, cachet, fond)',
       children: [
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton.icon(
@@ -577,7 +617,7 @@ class _SavedSection extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: () => _import(context),
             icon: const Icon(Icons.file_open_outlined),
-            label: const Text('Importer'),
+            label: const Text('Ajouter un modèle (ZIP ou JSON)'),
           ),
         ]),
         if (list.isNotEmpty) const SizedBox(height: 8),
@@ -586,18 +626,15 @@ class _SavedSection extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.style),
             title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(
-                '${designById(s.template.designId).name} · ${_mm(s.template.widthMm)} × ${_mm(s.template.heightMm)} mm'),
-            onTap: () {
-              state.applySaved(s);
-              toast(context, 'Modèle « ${s.name} » appliqué.');
-            },
+            subtitle: Text('${designById(s.template.designId).name} · ${_mm(s.template.widthMm)} × '
+                '${_mm(s.template.heightMm)} mm${s.school != null ? ' · avec établissement' : ''}'),
+            onTap: () => _apply(context, s),
             trailing: PopupMenuButton<String>(
               tooltip: 'Actions',
               onSelected: (a) async {
                 switch (a) {
                   case 'apply':
-                    state.applySaved(s);
+                    await _apply(context, s);
                   case 'update':
                     state.overwriteSaved(s);
                     toast(context, '« ${s.name} » mis à jour avec les réglages actuels.');
@@ -617,7 +654,7 @@ class _SavedSection extends StatelessWidget {
                 PopupMenuItem(value: 'apply', child: Text('Appliquer')),
                 PopupMenuItem(value: 'update', child: Text('Remplacer par les réglages actuels')),
                 PopupMenuItem(value: 'rename', child: Text('Renommer')),
-                PopupMenuItem(value: 'export', child: Text('Exporter (.carte.json)')),
+                PopupMenuItem(value: 'export', child: Text('Exporter en fichier ZIP')),
                 PopupMenuItem(value: 'delete', child: Text('Supprimer')),
               ],
             ),

@@ -18,8 +18,9 @@ Future<Uint8List> renderCard(
   ScreenshotController controller,
   CardTemplate t,
   SchoolInfo school,
-  Student s,
-) async {
+  Student s, {
+  bool watermark = false,
+}) async {
   final size = Size(t.widthMm * _scale, t.heightMm * _scale);
   final png = await controller.captureFromWidget(
     MediaQuery(
@@ -28,7 +29,7 @@ Future<Uint8List> renderCard(
         textDirection: TextDirection.ltr,
         child: Material(
           type: MaterialType.transparency,
-          child: CardView(template: t, school: school, student: s, scale: _scale, rounded: false),
+          child: CardView(template: t, school: school, student: s, scale: _scale, rounded: false, watermark: watermark),
         ),
       ),
     ),
@@ -45,6 +46,7 @@ Future<Uint8List> buildCardsPdf({
   required CardTemplate template,
   required SchoolInfo school,
   required PrintLayout layout,
+  bool watermark = false,
   void Function(int done, int total)? onProgress,
   bool Function()? cancelled,
 }) async {
@@ -52,7 +54,7 @@ Future<Uint8List> buildCardsPdf({
   final images = <Uint8List>[];
   for (var i = 0; i < students.length; i++) {
     if (cancelled?.call() ?? false) throw const _Cancelled();
-    images.add(await renderCard(controller, template, school, students[i]));
+    images.add(await renderCard(controller, template, school, students[i], watermark: watermark));
     onProgress?.call(i + 1, students.length);
   }
 

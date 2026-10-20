@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Carte Scolaire – Administration des licences</title>
+<link rel="icon" href="../assets/hero.jpg">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl-fast.min.js"></script>
+<style>
+  :root {
+    --ink: #13204f; --soft: #5a6488; --paper: #f3f6fa; --card: #fff; --line: #dbe3ee;
+    --red: #e31e24; --green: #0b6b3a; --amber: #b25e00; --blue: #1e4fa1;
+    --display: "Bricolage Grotesque", system-ui, sans-serif; --body: "Source Sans 3", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 var(--body); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-left)); }
+  h1, h2 { font-family: var(--display); margin: 0; }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.2rem; margin-bottom: 12px; }
+  header { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; margin-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 44px; height: 44px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; font-size: .92rem; margin: 10px 0 4px; }
+  input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: #fff; color: var(--ink); }
+  textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .grid > * { min-width: 0; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  button { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; background: var(--ink); color: #fff; }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button.red { background: var(--red); }
+  button.small { padding: 6px 10px; font-size: .85rem; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #90caf9; outline-offset: 1px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs button { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .tabs button[aria-selected="true"] { background: var(--ink); color: #fff; }
+  .msg { padding: 10px 12px; border-radius: 10px; margin-top: 12px; font-weight: 600; }
+  .msg.ok { background: #e5f4ea; color: var(--green); }
+  .msg.err { background: #fde8e8; color: #9b1c1c; }
+  .msg.info { background: #e8effc; color: var(--blue); }
+  .code { word-break: break-all; background: #0f1630; color: #e8edff; padding: 12px; border-radius: 10px; font: .85rem/1.5 ui-monospace, Menlo, Consolas, monospace; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: .8rem; font-weight: 700; }
+  .pill.active { background: #e5f4ea; color: var(--green); }
+  .pill.expired { background: #fff1e6; color: var(--amber); }
+  .pill.revoked { background: #fde8e8; color: #9b1c1c; }
+  .muted { color: var(--soft); font-size: .9rem; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .stats b { display: block; font-family: var(--display); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+  @media (max-width: 700px) { .stats { grid-template-columns: 1fr 1fr; } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><img src="../assets/logo.png" alt=""><div><h1>Administration des licences</h1><div class="muted">Carte Scolaire · OMZAKREVO INFORMATIQUE</div></div></div>
+    <button class="ghost" id="logout" hidden>Se déconnecter</button>
+  </header>
+
+  <!-- Première configuration -->
+  <section id="setup" class="card" hidden>
+    <h2>Configuration de l'administrateur</h2>
+    <p class="muted">À faire une seule fois sur cet ordinateur. La clé privée signe les licences : gardez-la secrète, elle n'est jamais envoyée sur Internet. Elle est enregistrée chiffrée dans ce navigateur avec votre mot de passe administrateur.</p>
+    <label for="seed">Clé privée (contenu du fichier <code>cle_privee_admin.txt</code>)</label>
+    <textarea id="seed" rows="2" placeholder="Collez la clé ici"></textarea>
+    <div class="row"><input type="file" id="seedFile" accept=".txt" style="max-width:320px"></div>
+    <div class="grid">
+      <div><label for="p1">Mot de passe administrateur</label><input type="password" id="p1" autocomplete="new-password"></div>
+      <div><label for="p2">Confirmer</label><input type="password" id="p2" autocomplete="new-password"></div>
+    </div>
+    <div class="row"><button id="doSetup">Enregistrer et ouvrir</button></div>
+    <div id="setupMsg"></div>
+  </section>
+
+  <!-- Connexion -->
+  <section id="login" class="card" hidden>
+    <h2>Connexion</h2>
+    <label for="lp">Mot de passe administrateur</label>
+    <input type="password" id="lp" autocomplete="current-password">
+    <div class="row"><button id="doLogin">Se connecter</button><button class="ghost small" id="resetAll">Réinitialiser cet ordinateur</button></div>
+    <div id="loginMsg"></div>
+  </section>
+
+  <!-- Tableau de bord -->
+  <main id="app" hidden>
+    <div class="stats">
+      <div><span class="muted">Licences actives</span><b id="sActive">0</b></div>
+      <div><span class="muted">Expirent sous 30 jours</span><b id="sSoon">0</b></div>
+      <div><span class="muted">Expirées</span><b id="sExpired">0</b></div>
+      <div><span class="muted">Révoquées</span><b id="sRevoked">0</b></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="new" aria-selected="true">Nouvelle licence</button>
+      <button role="tab" data-tab="list" aria-selected="false">Licences</button>
+      <button role="tab" data-tab="reset" aria-selected="false">Mot de passe oublié</button>
+      <button role="tab" data-tab="github" aria-selected="false">Registre GitHub</button>
+      <button role="tab" data-tab="backup" aria-selected="false">Sauvegarde</button>
+    </div>
+
+    <section class="card" data-panel="new">
+      <h2>Attribuer une licence</h2>
+      <div class="grid">
+        <div><label for="client">Établissement / client</label><input id="client" placeholder="C.P.E Maranatha"></div>
+        <div><label for="phone">Téléphone</label><input id="phone" placeholder="70 00 00 00"></div>
+        <div><label for="device">Identifiant de l'appareil</label><input id="device" placeholder="ABCDE-FGHJK" style="text-transform:uppercase;font-family:ui-monospace,monospace"></div>
+        <div><label for="plan">Formule</label>
+          <select id="plan">
+            <option value="M1">1 mois</option>
+            <option value="M3">3 mois</option>
+            <option value="M6">6 mois</option>
+            <option value="Y1" selected>1 an</option>
+            <option value="LIFE">Définitive</option>
+            <option value="CUSTOM">Date de fin personnalisée</option>
+          </select>
+        </div>
+        <div id="customWrap" hidden><label for="custom">Date de fin</label><input type="date" id="custom"></div>
+        <div><label for="amount">Montant payé (FCFA)</label><input id="amount" inputmode="numeric" placeholder="Facultatif"></div>
+      </div>
+      <label for="notes">Notes</label><input id="notes" placeholder="Facultatif">
+      <div class="row"><button id="issue">Générer le code de licence</button></div>
+      <div id="issueOut"></div>
+    </section>
+
+    <section class="card" data-panel="list" hidden>
+      <h2>Licences attribuées</h2>
+      <input id="search" placeholder="Rechercher un établissement, un téléphone, un appareil">
+      <div class="table-wrap" style="margin-top:12px">
+        <table><thead><tr><th>Établissement</th><th>Appareil</th><th>Formule</th><th>Fin</th><th>État</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+      </div>
+      <p class="muted">Après une révocation, publiez le registre (onglet « Registre GitHub ») : l'application bloque la licence à sa prochaine connexion à Internet.</p>
+    </section>
+
+    <section class="card" data-panel="reset" hidden>
+      <h2>Code de réinitialisation du mot de passe</h2>
+      <p class="muted">Le client a oublié son mot de passe : demandez l'identifiant affiché sur son écran (« Mot de passe oublié ? »). Le code est valable 7 jours, uniquement sur cet appareil.</p>
+      <label for="resetDevice">Identifiant de l'appareil</label><input id="resetDevice" placeholder="ABCDE-FGHJK" style="text-transform:uppercase;font-family:ui-monospace,monospace">
+      <div class="row"><button id="doReset">Générer le code</button></div>
+      <div id="resetOut"></div>
+    </section>
+
+    <section class="card" data-panel="github" hidden>
+      <h2>Registre public sur GitHub</h2>
+      <p class="muted">Le fichier <code>licenses/registry.json</code> du dépôt liste les licences et celles qui sont révoquées. L'application le consulte quand elle a Internet. Les noms des clients et les téléphones n'y figurent pas : ils restent dans ce navigateur.</p>
+      <label for="token">Jeton GitHub (accès « Contents : Read and write » au dépôt carte-scolaire)</label>
+      <input type="password" id="token" placeholder="github_pat_…">
+      <div class="row"><button id="saveToken" class="ghost">Enregistrer le jeton (chiffré)</button><button id="publish">Publier le registre</button></div>
+      <div id="ghOut"></div>
+    </section>
+
+    <section class="card" data-panel="backup" hidden>
+      <h2>Sauvegarde</h2>
+      <p class="muted">La liste des clients est enregistrée dans ce navigateur. Téléchargez une sauvegarde régulièrement et gardez aussi le fichier de la clé privée en lieu sûr.</p>
+      <div class="row">
+        <button id="exportBtn">Copier la sauvegarde</button>
+        <button id="exportCsv" class="ghost">Copier la liste (CSV pour Excel)</button>
+      </div>
+      <label for="backupText">Sauvegarde (JSON)</label>
+      <textarea id="backupText" rows="6"></textarea>
+      <div class="row"><button id="importBtn" class="ghost">Restaurer depuis le texte ci-dessus</button></div>
+      <div id="backupOut"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const APP_PUBLIC_KEY = '9z6fiwSh9JJ+XGPnVLNmzzVsVMoDjZrj444y0RCO23g=';
+const REPO = 'omzakrevo/carte-scolaire';
+const REG_PATH = 'licenses/registry.json';
+const PLAN_LABEL = { M1: '1 mois', M3: '3 mois', M6: '6 mois', Y1: '1 an', LIFE: 'Définitive', RESET: 'Réinit. mot de passe', CUSTOM: 'Personnalisée' };
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder(), dec = new TextDecoder();
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem('cs_admin_' + k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('cs_admin_' + k, JSON.stringify(v)); } catch (e) { alertMsg('backupOut', 'err', 'Stockage du navigateur indisponible : utilisez un navigateur normal (pas de navigation privée).'); } },
+  del(k) { try { localStorage.removeItem('cs_admin_' + k); } catch (e) {} },
+};
+const b64 = u8 => btoa(String.fromCharCode(...u8));
+const unb64 = s => Uint8Array.from(atob(s.trim()), c => c.charCodeAt(0));
+const b64url = u8 => b64(u8).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+let session = null; // { key: CryptoKey, keyPair, token }
+let licenses = store.get('licenses') || [];
+
+function alertMsg(id, kind, text) { const el = $(id); el.innerHTML = ''; const d = document.createElement('div'); d.className = 'msg ' + kind; d.textContent = text; el.appendChild(d); }
+function today() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function ymd(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); }
+function fr(s) { return s && s !== '0' ? s.slice(6, 8) + '/' + s.slice(4, 6) + '/' + s.slice(0, 4) : '—'; }
+function addMonths(d, n) { const r = new Date(d); r.setMonth(r.getMonth() + n); return r; }
+function normDevice(v) { const s = v.toUpperCase().replace(/[^A-Z0-9]/g, ''); return s.length === 10 ? s.slice(0, 5) + '-' + s.slice(5) : null; }
+function status(l) {
+  if (l.revoked) return 'revoked';
+  if (l.expires !== '0' && l.expires < ymd(today())) return 'expired';
+  return 'active';
+}
+
+async function deriveKey(password, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function seal(key, text) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text))); return { iv: b64(iv), ct: b64(ct) }; }
+async function open_(key, box) { return dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv) }, key, unb64(box.ct))); }
+
+function show(view) { for (const v of ['setup', 'login', 'app']) $(v).hidden = v !== view; $('logout').hidden = view !== 'app'; }
+
+// ---------- Configuration ----------
+$('seedFile').addEventListener('change', async e => { const f = e.target.files[0]; if (f) $('seed').value = (await f.text()).trim(); });
+$('doSetup').addEventListener('click', async () => {
+  try {
+    const seed = unb64($('seed').value);
+    if (seed.length !== 32) throw new Error('La clé doit faire 32 octets (texte base64 de 44 caractères).');
+    if ($('p1').value.length < 8) throw new Error('Choisissez un mot de passe administrateur d\'au moins 8 caractères.');
+    if ($('p1').value !== $('p2').value) throw new Error('Les deux mots de passe sont différents.');
+    const kp = nacl.sign.keyPair.fromSeed(seed);
+    if (b64(kp.publicKey) !== APP_PUBLIC_KEY) throw new Error('Cette clé ne correspond pas à l\'application : les codes seraient refusés.');
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await deriveKey($('p1').value, salt);
+    store.set('vault', { salt: b64(salt), seed: await seal(key, b64(seed)) });
+    $('seed').value = $('p1').value = $('p2').value = '';
+    session = { key, keyPair: kp, token: null };
+    enter();
+  } catch (e) { alertMsg('setupMsg', 'err', e.message); }
+});
+
+// ---------- Connexion ----------
+async function login() {
+  const vault = store.get('vault');
+  try {
+    const key = await deriveKey($('lp').value, unb64(vault.salt));
+    const seed = unb64(await open_(key, vault.seed));
+    const token = vault.token ? await open_(key, vault.token) : null;
+    session = { key, keyPair: nacl.sign.keyPair.fromSeed(seed), token };
+    $('lp').value = '';
+    enter();
+  } catch (e) { alertMsg('loginMsg', 'err', 'Mot de passe incorrect.'); }
+}
+$('doLogin').addEventListener('click', login);
+$('lp').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+$('logout').addEventListener('click', () => { session = null; show('login'); });
+$('resetAll').addEventListener('click', () => {
+  if ($('resetAll').dataset.armed) { store.del('vault'); show('setup'); return; }
+  $('resetAll').dataset.armed = '1'; $('resetAll').textContent = 'Cliquez encore pour effacer la clé de cet ordinateur';
+});
+
+function enter() { show('app'); if (session.token) $('token').value = session.token; render(); }
+
+// ---------- Signature ----------
+function sign(payload) {
+  const sig = nacl.sign.detached(enc.encode(payload), session.keyPair.secretKey);
+  return b64url(enc.encode(payload)) + '.' + b64url(sig);
+}
+function newId() { const r = crypto.getRandomValues(new Uint8Array(3)); return 'L-' + ymd(today()) + '-' + Array.from(r, x => x.toString(16).padStart(2, '0')).join('').toUpperCase(); }
+
+$('plan').addEventListener('change', () => { $('customWrap').hidden = $('plan').value !== 'CUSTOM'; });
+$('issue').addEventListener('click', () => {
+  const device = normDevice($('device').value);
+  if (!device) return alertMsg('issueOut', 'err', 'Identifiant d\'appareil invalide : 10 caractères, comme ABCDE-FGHJK.');
+  if (!$('client').value.trim()) return alertMsg('issueOut', 'err', 'Indiquez le nom de l\'établissement.');
+  let plan = $('plan').value, expires;
+  const t = today();
+  if (plan === 'LIFE') expires = '0';
+  else if (plan === 'CUSTOM') {
+    if (!$('custom').value) return alertMsg('issueOut', 'err', 'Choisissez la date de fin.');
+    expires = $('custom').value.replace(/-/g, '');
+  } else expires = ymd(addMonths(t, { M1: 1, M3: 3, M6: 6, Y1: 12 }[plan]));
+  const id = newId();
+  const issued = ymd(t);
+  const code = sign(['CS1', id, device, plan, expires, issued].join('|'));
+  const lic = { id, device, plan, expires, issued, code, client: $('client').value.trim(), phone: $('phone').value.trim(), amount: $('amount').value.trim(), notes: $('notes').value.trim(), revoked: false };
+  licenses.unshift(lic);
+  store.set('licenses', licenses);
+  renderCode('issueOut', lic, `Bonjour, voici votre code de licence Carte Scolaire (${PLAN_LABEL[plan]}${expires !== '0' ? ', valable jusqu\'au ' + fr(expires) : ''}). Ouvrez l'application, touchez « Version d'essai » puis collez ce code :\n\n${code}`);
+  render();
+});
+
+function renderCode(target, lic, message) {
+  const out = $(target); out.innerHTML = '';
+  const ok = document.createElement('div'); ok.className = 'msg ok';
+  ok.textContent = lic.plan === 'RESET' ? 'Code de réinitialisation créé.' : `Licence ${PLAN_LABEL[lic.plan]} créée pour ${lic.client || lic.device}.`;
+  const code = document.createElement('div'); code.className = 'code'; code.style.marginTop = '10px'; code.textContent = lic.code;
+  const row = document.createElement('div'); row.className = 'row';
+  const copy = document.createElement('button'); copy.textContent = 'Copier le code';
+  copy.onclick = () => copyText(lic.code, copy);
+  const copyMsg = document.createElement('button'); copyMsg.className = 'ghost'; copyMsg.textContent = 'Copier le message pour WhatsApp';
+  copyMsg.onclick = () => copyText(message, copyMsg);
+  const wa = document.createElement('a'); wa.className = 'muted'; wa.target = '_blank'; wa.rel = 'noopener';
+  wa.href = 'https://wa.me/?text=' + encodeURIComponent(message); wa.textContent = 'Ouvrir dans WhatsApp';
+  row.append(copy, copyMsg, wa);
+  out.append(ok, code, row);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = 'Copié ✓'; setTimeout(() => btn.textContent = t, 1500); }
+  catch (e) { prompt('Copiez le texte :', text); }
+}
+
+$('doReset').addEventListener('click', () => {
+  const device = normDevice($('resetDevice').value);
+  if (!device) return alertMsg('resetOut', 'err', 'Identifiant d\'appareil invalide.');
+  const lic = { id: 'R-' + newId().slice(2), device, plan: 'RESET', expires: '0', issued: ymd(today()) };
+  lic.code = sign(['CS1', lic.id, device, 'RESET', '0', lic.issued].join('|'));
+  renderCode('resetOut', lic, `Voici votre code de réinitialisation du mot de passe Carte Scolaire (valable 7 jours). Sur l'écran de connexion, touchez « Mot de passe oublié ? » et collez :\n\n${lic.code}`);
+});
+
+// ---------- Liste ----------
+function render() {
+  const now = ymd(today()), soon = ymd(addMonths(today(), 1));
+  let a = 0, s = 0, e = 0, r = 0;
+  for (const l of licenses) { const st = status(l); if (st === 'active') { a++; if (l.expires !== '0' && l.expires <= soon) s++; } else if (st === 'expired') e++; else r++; }
+  $('sActive').textContent = a; $('sSoon').textContent = s; $('sExpired').textContent = e; $('sRevoked').textContent = r;
+  const q = $('search').value.toLowerCase();
+  const tbody = $('rows'); tbody.innerHTML = '';
+  for (const l of licenses.filter(l => !q || [l.client, l.phone, l.device, l.id].join(' ').toLowerCase().includes(q))) {
+    const tr = document.createElement('tr');
+    const st = status(l);
+    const cell = (t, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = t; return td; };
+    const c1 = cell(l.client); if (l.phone) { const p = document.createElement('div'); p.className = 'muted'; p.textContent = l.phone; c1.appendChild(p); }
+    const pill = document.createElement('span'); pill.className = 'pill ' + st; pill.textContent = { active: 'Active', expired: 'Expirée', revoked: 'Révoquée' }[st];
+    const c5 = document.createElement('td'); c5.appendChild(pill);
+    const c6 = document.createElement('td'); c6.style.whiteSpace = 'nowrap';
+    const bCopy = document.createElement('button'); bCopy.className = 'ghost small'; bCopy.textContent = 'Code'; bCopy.onclick = () => copyText(l.code, bCopy);
+    const bRev = document.createElement('button'); bRev.className = (l.revoked ? 'ghost' : 'red') + ' small'; bRev.textContent = l.revoked ? 'Rétablir' : 'Révoquer';
+    bRev.onclick = () => { l.revoked = !l.revoked; store.set('licenses', licenses); render(); };
+    c6.append(bCopy, ' ', bRev);
+    tr.append(c1, cell(l.device, 'num'), cell(PLAN_LABEL[l.plan] || l.plan), cell(l.expires === '0' ? 'Jamais' : fr(l.expires), 'num'), c5, c6);
+    tbody.appendChild(tr);
+  }
+  if (!licenses.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 6; td.className = 'muted'; td.textContent = 'Aucune licence pour l\'instant. Créez la première dans l\'onglet « Nouvelle licence ».'; tr.appendChild(td); tbody.appendChild(tr); }
+}
+$('search').addEventListener('input', render);
+
+for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => {
+  for (const x of document.querySelectorAll('[data-tab]')) x.setAttribute('aria-selected', x === b);
+  for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== b.dataset.tab;
+});
+
+// ---------- GitHub ----------
+$('saveToken').addEventListener('click', async () => {
+  const vault = store.get('vault');
+  vault.token = await seal(session.key, $('token').value.trim());
+  store.set('vault', vault); session.token = $('token').value.trim();
+  alertMsg('ghOut', 'ok', 'Jeton enregistré, chiffré avec votre mot de passe.');
+});
+$('publish').addEventListener('click', async () => {
+  const token = $('token').value.trim();
+  if (!token) return alertMsg('ghOut', 'err', 'Collez d\'abord un jeton GitHub.');
+  $('publish').disabled = true;
+  alertMsg('ghOut', 'info', 'Publication en cours…');
+  try {
+    const registry = {
+      version: 1,
+      updated: new Date().toISOString(),
+      revoked: licenses.filter(l => l.revoked).map(l => l.id),
+      licenses: licenses.map(l => ({ id: l.id, device: l.device, plan: l.plan, expires: l.expires, issued: l.issued, status: status(l) })),
+    };
+    const api = `https://api.github.com/repos/${REPO}/contents/${REG_PATH}`;
+    const headers = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' };
+    const cur = await fetch(api + '?ref=main', { headers });
+    const sha = cur.ok ? (await cur.json()).sha : undefined;
+    const content = b64(enc.encode(JSON.stringify(registry, null, 2) + '\n'));
+    const r = await fetch(api, { method: 'PUT', headers, body: JSON.stringify({ message: `Registre des licences : ${registry.licenses.length} licences, ${registry.revoked.length} révoquée(s)`, content, sha, branch: 'main' }) });
+    if (!r.ok) throw new Error((await r.json()).message || r.status);
+    alertMsg('ghOut', 'ok', `Registre publié : ${registry.licenses.length} licences, ${registry.revoked.length} révoquée(s). Les applications le prendront en compte à leur prochaine connexion.`);
+  } catch (e) { alertMsg('ghOut', 'err', 'Échec de la publication : ' + e.message + '. Vérifiez le jeton et ses droits.'); }
+  $('publish').disabled = false;
+});
+
+// ---------- Sauvegarde ----------
+$('exportBtn').addEventListener('click', () => {
+  $('backupText').value = JSON.stringify({ carteScolaireAdmin: 1, exported: new Date().toISOString(), licenses }, null, 1);
+  copyText($('backupText').value, $('exportBtn'));
+});
+$('exportCsv').addEventListener('click', () => {
+  const head = ['Établissement', 'Téléphone', 'Appareil', 'Formule', 'Émise le', 'Fin', 'État', 'Montant', 'Notes', 'Code'];
+  const rows = licenses.map(l => [l.client, l.phone, l.device, PLAN_LABEL[l.plan] || l.plan, fr(l.issued), l.expires === '0' ? 'Jamais' : fr(l.expires), status(l), l.amount, l.notes, l.code]);
+  const csv = [head, ...rows].map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\n');
+  $('backupText').value = csv; copyText(csv, $('exportCsv'));
+});
+$('importBtn').addEventListener('click', () => {
+  try {
+    const j = JSON.parse($('backupText').value);
+    if (!Array.isArray(j.licenses)) throw new Error();
+    const known = new Set(licenses.map(l => l.id));
+    const added = j.licenses.filter(l => !known.has(l.id));
+    licenses = [...added, ...licenses]; store.set('licenses', licenses); render();
+    alertMsg('backupOut', 'ok', `${added.length} licence(s) restaurée(s).`);
+  } catch (e) { alertMsg('backupOut', 'err', 'Texte de sauvegarde invalide.'); }
+});
+
+show(store.get('vault') ? 'login' : 'setup');
+</script>
+</body>
+</html>

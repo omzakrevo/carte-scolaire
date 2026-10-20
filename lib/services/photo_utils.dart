@@ -86,3 +86,39 @@ Uint8List _prepareBackground(Uint8List bytes) {
   }
   return Uint8List.fromList(img.encodeJpg(im, quality: 90));
 }
+
+/// Photo d'origine normalisée : orientation corrigée, 1600 px maximum, JPEG.
+/// Sert de base au recadrage (et au recadrage ultérieur).
+Future<Uint8List> normalizeOriginal(Uint8List bytes) => compute(_normalizeOriginal, bytes);
+
+Uint8List _normalizeOriginal(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) throw const FormatException('Image illisible');
+  var im = img.bakeOrientation(decoded);
+  final longSide = im.width >= im.height ? im.width : im.height;
+  if (longSide > 1600) {
+    im = im.width >= im.height ? img.copyResize(im, width: 1600) : img.copyResize(im, height: 1600);
+  }
+  return Uint8List.fromList(img.encodeJpg(im, quality: 90));
+}
+
+/// Tourne une photo de 90° (sens horaire si [clockwise]).
+Future<Uint8List> rotatePhoto(Uint8List bytes, bool clockwise) => compute(_rotatePhoto, (bytes, clockwise ? 90 : -90));
+
+Uint8List _rotatePhoto((Uint8List, int) a) {
+  final im = img.decodeImage(a.$1)!;
+  return Uint8List.fromList(img.encodeJpg(img.copyRotate(im, angle: a.$2), quality: 90));
+}
+
+/// Découpe la zone choisie (en pixels de l'image) et la met au format 450 × 600.
+Future<Uint8List> cropPhoto(Uint8List bytes, int x, int y, int w, int h) => compute(_cropPhoto, (bytes, x, y, w, h));
+
+Uint8List _cropPhoto((Uint8List, int, int, int, int) a) {
+  final (bytes, x, y, w, h) = a;
+  var im = img.decodeImage(bytes)!;
+  final cx = x.clamp(0, im.width - 1);
+  final cy = y.clamp(0, im.height - 1);
+  im = img.copyCrop(im, x: cx, y: cy, width: w.clamp(1, im.width - cx), height: h.clamp(1, im.height - cy));
+  im = img.copyResize(im, width: 450, height: 600, interpolation: img.Interpolation.cubic);
+  return Uint8List.fromList(img.encodeJpg(im, quality: 90));
+}

@@ -137,6 +137,12 @@ class CardView extends StatelessWidget {
   final double scale;
   final bool rounded;
 
+  /// Éditeur de calques : rend les éléments sélectionnables et déplaçables.
+  final LayerEditor? editor;
+
+  /// Filigrane « version d'essai » (mode test, sans licence).
+  final bool watermark;
+
   const CardView({
     super.key,
     required this.template,
@@ -144,13 +150,15 @@ class CardView extends StatelessWidget {
     required this.student,
     this.scale = 4,
     this.rounded = true,
+    this.editor,
+    this.watermark = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final w = template.widthMm * scale;
     final h = template.heightMm * scale;
-    final c = CardCtx(template, school, student, w, h);
+    final c = CardCtx(template, school, student, w, h, editor: editor);
     final design = designById(template.designId);
     return SizedBox(
       width: w,
@@ -165,7 +173,9 @@ class CardView extends StatelessWidget {
             decoration: TextDecoration.none,
             fontWeight: FontWeight.w400,
           ),
-          child: design.build(c),
+          child: watermark
+              ? Stack(fit: StackFit.expand, children: [design.build(c), IgnorePointer(child: TrialWatermark(u: c.u))])
+              : design.build(c),
         ),
       ),
     );
@@ -183,7 +193,48 @@ class CardCtx {
   /// Unité de dessin : 1/54 du petit côté (≈ 1 mm sur une carte CR80).
   final double u;
 
-  CardCtx(this.t, this.school, this.s, this.w, this.h) : u = math.min(w, h) / 54;
+  final LayerEditor? editor;
+
+  CardCtx(this.t, this.school, this.s, this.w, this.h, {this.editor}) : u = math.min(w, h) / 54;
+
+  /// Pixels logiques par millimètre.
+  double get mm => w / t.widthMm;
+
+  /// Calque déplaçable : applique le décalage et l'échelle réglés par l'utilisateur
+  /// et, dans l'éditeur, rend l'élément sélectionnable, déplaçable et redimensionnable.
+  Widget layer(String id, Widget child, {Alignment origin = Alignment.center}) {
+    final a = t.layers[id];
+    final ed = editor;
+    Widget w = child;
+    if (a != null && (a.scale != 1)) w = Transform.scale(scale: a.scale, alignment: origin, child: w);
+    if (ed != null) {
+      final selected = ed.selected == id;
+      w = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ed.select(id),
+        onScaleStart: (_) => ed.begin(id, t),
+        onScaleUpdate: (d) => ed.update(id, t, d.focalPointDelta / mm, d.scale),
+        onScaleEnd: (_) => ed.end(),
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: selected ? const Color(0xFF1E88E5) : const Color(0x551E88E5),
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: w,
+        ),
+      );
+    }
+    if (a != null && a.hidden) {
+      w = ed == null
+          ? Visibility(visible: false, maintainSize: true, maintainAnimation: true, maintainState: true, child: w)
+          : Opacity(opacity: 0.25, child: w);
+    }
+    if (a != null && (a.dx != 0 || a.dy != 0)) w = Transform.translate(offset: Offset(a.dx * mm, a.dy * mm), child: w);
+    return w;
+  }
 
   bool get landscape => w >= h;
   Color get primary => Color(t.primary);
@@ -255,15 +306,21 @@ class CardCtx {
       Positioned(
         right: -size * 0.15,
         bottom: -size * 0.2,
-        child: Opacity(
-          opacity: 0.85,
-          child: Image.memory(school.stamp!, width: size, height: size, fit: BoxFit.contain),
+        child: layer(
+          'stamp',
+          Opacity(
+            opacity: 0.85,
+            child: Image.memory(school.stamp!, width: size, height: size, fit: BoxFit.contain),
+          ),
         ),
       ),
     ]);
   }
 
-  Widget logo(double size, {Color? fallbackBg, Color? fallbackFg}) {
+  Widget logo(double size, {Color? fallbackBg, Color? fallbackFg}) =>
+      layer('logo', _logo(size, fallbackBg: fallbackBg, fallbackFg: fallbackFg));
+
+  Widget _logo(double size, {Color? fallbackBg, Color? fallbackFg}) {
     if (school.logo != null) {
       return SizedBox(width: size, height: size, child: Image.memory(school.logo!, fit: BoxFit.contain));
     }
@@ -284,7 +341,9 @@ class CardCtx {
   }
 
   /// Emblème / armoiries à droite de l'en-tête (drapeau stylisé par défaut).
-  Widget emblem(double size) {
+  Widget emblem(double size) => layer('emblem', _emblem(size));
+
+  Widget _emblem(double size) {
     if (school.emblem != null) {
       return SizedBox(width: size, height: size, child: Image.memory(school.emblem!, fit: BoxFit.contain));
     }
@@ -309,7 +368,9 @@ class CardCtx {
     );
   }
 
-  Widget qr(double size, {Color dark = const Color(0xFF111111)}) => Container(
+  Widget qr(double size, {Color dark = const Color(0xFF111111)}) => layer('qr', _qr(size, dark: dark));
+
+  Widget _qr(double size, {Color dark = const Color(0xFF111111)}) => Container(
         width: size,
         height: size,
         color: Colors.white,
@@ -400,27 +461,34 @@ class CardCtx {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                photoWithStamp(pw, ph, border: photoBorder, radius: photoRadius * u),
-                if (hasSigner)
-                  SizedBox(
-                    width: pw + 2 * u,
-                    height: signH,
-                    child: Center(
-                      child: line(school.signerName, st(1.7, weight: FontWeight.w800, color: signerColor ?? value),
-                          align: Alignment.center),
+            layer(
+              'photo',
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  photoWithStamp(pw, ph, border: photoBorder, radius: photoRadius * u),
+                  if (hasSigner)
+                    SizedBox(
+                      width: pw + 2 * u,
+                      height: signH,
+                      child: Center(
+                        child: line(school.signerName, st(1.7, weight: FontWeight.w800, color: signerColor ?? value),
+                            align: Alignment.center),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             SizedBox(width: (hasStamp ? 3 : 2) * u),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (infoTop != null) ...[infoTop, SizedBox(height: 0.8 * u)],
-                Expanded(child: info(label: label, value: value)),
-              ]),
+              child: layer(
+                'info',
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (infoTop != null) ...[infoTop, SizedBox(height: 0.8 * u)],
+                  Expanded(child: info(label: label, value: value)),
+                ]),
+                origin: Alignment.topLeft,
+              ),
             ),
             if (t.showQr || bottomRight != null) SizedBox(width: 1.2 * u),
             if (t.showQr || bottomRight != null)
@@ -456,29 +524,43 @@ class CardCtx {
         final pw = circle ? ph : ph * 0.78;
         return Column(
           children: [
-            photoWithStamp(pw, ph, border: photoBorder, radius: 1 * u, circle: circle),
-            if (hasSigner)
-              line(school.signerName, st(1.6, color: value, weight: FontWeight.w800), align: Alignment.center),
+            layer(
+              'photo',
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                photoWithStamp(pw, ph, border: photoBorder, radius: 1 * u, circle: circle),
+                if (hasSigner)
+                  line(school.signerName, st(1.6, color: value, weight: FontWeight.w800), align: Alignment.center),
+              ]),
+            ),
             SizedBox(height: 0.8 * u),
-            if (t.shows('nomPrenom')) ...[
-              line(s.nom.toUpperCase(), st(3.1 * t.textScale, color: nameColor, weight: FontWeight.w800),
-                  align: Alignment.center),
-              line(s.prenom, st(2.3 * t.textScale, color: nameColor, weight: FontWeight.w600), align: Alignment.center),
-            ],
-            SizedBox(height: 0.6 * u),
-            if (t.shows('classe') && s.classe.isNotEmpty)
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 2 * u, vertical: 0.4 * u),
-                decoration: BoxDecoration(color: pillBg ?? accent, borderRadius: BorderRadius.circular(3 * u)),
-                child: Text(s.classe, style: st(2, color: on(pillBg ?? accent), weight: FontWeight.w800)),
-              ),
-            if (infoTop != null) ...[SizedBox(height: 0.6 * u), infoTop],
+            layer(
+              'name',
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                if (t.shows('nomPrenom')) ...[
+                  line(s.nom.toUpperCase(), st(3.1 * t.textScale, color: nameColor, weight: FontWeight.w800),
+                      align: Alignment.center),
+                  line(s.prenom, st(2.3 * t.textScale, color: nameColor, weight: FontWeight.w600),
+                      align: Alignment.center),
+                ],
+                SizedBox(height: 0.6 * u),
+                if (t.shows('classe') && s.classe.isNotEmpty)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 2 * u, vertical: 0.4 * u),
+                    decoration: BoxDecoration(color: pillBg ?? accent, borderRadius: BorderRadius.circular(3 * u)),
+                    child: Text(s.classe, style: st(2, color: on(pillBg ?? accent), weight: FontWeight.w800)),
+                  ),
+                if (infoTop != null) ...[SizedBox(height: 0.6 * u), infoTop],
+              ]),
+            ),
             SizedBox(height: 1 * u),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Expanded(child: info(label: label, value: value, includeName: false, size: 2.0)),
+                  Expanded(
+                    child: layer('info', info(label: label, value: value, includeName: false, size: 2.0),
+                        origin: Alignment.topLeft),
+                  ),
                   if (t.showQr) ...[SizedBox(width: 1 * u), qr(math.min(11 * u, box.maxWidth * 0.3))],
                 ],
               ),
@@ -611,7 +693,8 @@ Widget _identite(CardCtx c) {
       c.logo(c.landscape ? 12.5 * u : 10 * u),
       SizedBox(width: 1 * u),
       Expanded(
-          child: Column(mainAxisSize: MainAxisSize.min, children: c.officialLines(ink, scale: c.landscape ? 1 : 0.85))),
+          child: c.layer('header',
+              Column(mainAxisSize: MainAxisSize.min, children: c.officialLines(ink, scale: c.landscape ? 1 : 0.85)))),
       SizedBox(width: 1 * u),
       c.emblem(c.landscape ? 11.5 * u : 9 * u),
     ]),
@@ -631,7 +714,7 @@ Widget _identite(CardCtx c) {
         header,
         Padding(
           padding: EdgeInsets.symmetric(horizontal: c.w * 0.12),
-          child: titlePill,
+          child: c.layer('title', titlePill),
         ),
         Expanded(
           child: c.landscape
@@ -657,7 +740,8 @@ Widget _identite(CardCtx c) {
           height: c.h * (c.landscape ? 0.17 : 0.11),
           child: Padding(
             padding: EdgeInsets.fromLTRB(c.w * 0.38, 0, 2 * u, 0.8 * u),
-            child: Align(alignment: Alignment.bottomRight, child: banner),
+            child: Align(
+                alignment: Alignment.bottomRight, child: c.layer('footer', banner, origin: Alignment.bottomRight)),
           ),
         ),
       ]),
@@ -709,11 +793,13 @@ Widget _officiel(CardCtx c) {
       c.logo(c.landscape ? 8.5 * u : 9 * u),
       SizedBox(width: 1.5 * u),
       Expanded(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ...c.officialLines(const Color(0xFF14181D), scale: 0.85),
-          c.line(c.school.name.toUpperCase(), c.st(2.1, weight: FontWeight.w800, color: c.primary),
-              align: Alignment.center),
-        ]),
+        child: c.layer(
+            'header',
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              ...c.officialLines(const Color(0xFF14181D), scale: 0.85),
+              c.line(c.school.name.toUpperCase(), c.st(2.1, weight: FontWeight.w800, color: c.primary),
+                  align: Alignment.center),
+            ])),
       ),
       SizedBox(width: 1.5 * u),
       c.emblem(8.5 * u),
@@ -729,7 +815,8 @@ Widget _officiel(CardCtx c) {
         height: 3.6 * u,
         color: c.primary,
         alignment: Alignment.center,
-        child: Text(c.t.title, style: c.st(2.1, color: c.on(c.primary), weight: FontWeight.w800, spacing: 0.35)),
+        child: c.layer(
+            'title', Text(c.t.title, style: c.st(2.1, color: c.on(c.primary), weight: FontWeight.w800, spacing: 0.35))),
       ),
       Expanded(
         child: Stack(children: [
@@ -747,10 +834,12 @@ Widget _officiel(CardCtx c) {
       ),
       Padding(
         padding: EdgeInsets.symmetric(horizontal: 2.4 * u, vertical: 0.4 * u),
-        child: Row(children: [
-          Expanded(child: c.line(c.year, c.st(1.55, weight: FontWeight.w700, color: c.primary))),
-          c.signature(const Color(0xFF5B6470)),
-        ]),
+        child: c.layer(
+            'footer',
+            Row(children: [
+              Expanded(child: c.line(c.year, c.st(1.55, weight: FontWeight.w700, color: c.primary))),
+              c.signature(const Color(0xFF5B6470)),
+            ])),
       ),
       Row(children: [
         Expanded(child: Container(height: 1 * u, color: c.secondary)),
@@ -782,17 +871,20 @@ Widget _bandeau(CardCtx c) {
           ),
           SizedBox(width: 1.6 * u),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              c.line(c.school.name.toUpperCase(), c.st(2.3, color: fg, weight: FontWeight.w800)),
-              c.line([c.school.address, c.school.phone].where((e) => e.isNotEmpty).join(' · '),
-                  c.st(1.35, color: fg.withValues(alpha: 0.85))),
-              SizedBox(height: 0.4 * u),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 1.2 * u, vertical: 0.2 * u),
-                color: c.accent,
-                child: c.line(c.t.title, c.st(1.5, color: c.on(c.accent), weight: FontWeight.w800, spacing: 0.2)),
-              ),
-            ]),
+            child: c.layer(
+                'header',
+                Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  c.line(c.school.name.toUpperCase(), c.st(2.3, color: fg, weight: FontWeight.w800)),
+                  c.line([c.school.address, c.school.phone].where((e) => e.isNotEmpty).join(' · '),
+                      c.st(1.35, color: fg.withValues(alpha: 0.85))),
+                  SizedBox(height: 0.4 * u),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 1.2 * u, vertical: 0.2 * u),
+                    color: c.accent,
+                    child: c.line(c.t.title, c.st(1.5, color: c.on(c.accent), weight: FontWeight.w800, spacing: 0.2)),
+                  ),
+                ]),
+                origin: Alignment.centerLeft),
           ),
         ]),
       ),
@@ -806,10 +898,12 @@ Widget _bandeau(CardCtx c) {
       Container(
         color: c.secondary,
         padding: EdgeInsets.symmetric(horizontal: 2.2 * u, vertical: 0.6 * u),
-        child: Row(children: [
-          Expanded(child: c.line(c.year, c.st(1.55, color: c.on(c.secondary), weight: FontWeight.w700))),
-          c.signature(c.on(c.secondary)),
-        ]),
+        child: c.layer(
+            'footer',
+            Row(children: [
+              Expanded(child: c.line(c.year, c.st(1.55, color: c.on(c.secondary), weight: FontWeight.w700))),
+              c.signature(c.on(c.secondary)),
+            ])),
       ),
     ]),
   );
@@ -867,26 +961,32 @@ Widget _diagonale(CardCtx c) {
               SizedBox(width: 1.4 * u),
               SizedBox(
                 width: c.w * 0.54 - math.min(c.h * 0.19, c.w * 0.2) - 3.4 * u,
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      c.line(c.school.name.toUpperCase(), c.st(2.1, color: fg, weight: FontWeight.w800)),
-                      c.line(c.school.address, c.st(1.3, color: fg.withValues(alpha: 0.9))),
-                    ]),
+                child: c.layer(
+                    'header',
+                    Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          c.line(c.school.name.toUpperCase(), c.st(2.1, color: fg, weight: FontWeight.w800)),
+                          c.line(c.school.address, c.st(1.3, color: fg.withValues(alpha: 0.9))),
+                        ]),
+                    origin: Alignment.centerLeft),
               ),
               const Spacer(),
               SizedBox(
                 width: c.w * 0.3,
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      c.line(c.t.title, c.st(1.8, color: c.secondary, weight: FontWeight.w900, spacing: 0.2),
-                          align: Alignment.centerRight),
-                      c.line(c.school.schoolYear, c.st(1.5, color: c.primary, weight: FontWeight.w700),
-                          align: Alignment.centerRight),
-                    ]),
+                child: c.layer(
+                    'title',
+                    Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          c.line(c.t.title, c.st(1.8, color: c.secondary, weight: FontWeight.w900, spacing: 0.2),
+                              align: Alignment.centerRight),
+                          c.line(c.school.schoolYear, c.st(1.5, color: c.primary, weight: FontWeight.w700),
+                              align: Alignment.centerRight),
+                        ]),
+                    origin: Alignment.centerRight),
               ),
             ]),
           ),
@@ -902,12 +1002,14 @@ Widget _diagonale(CardCtx c) {
           height: c.h * 0.12,
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 2.4 * u),
-            child: Row(children: [
-              Expanded(child: c.line(c.school.phone.isEmpty ? '' : 'Tél. ${c.school.phone}', c.st(1.35))),
-              SizedBox(
-                  width: c.w * 0.45,
-                  child: Align(alignment: Alignment.centerRight, child: c.signature(c.on(c.secondary)))),
-            ]),
+            child: c.layer(
+                'footer',
+                Row(children: [
+                  Expanded(child: c.line(c.school.phone.isEmpty ? '' : 'Tél. ${c.school.phone}', c.st(1.35))),
+                  SizedBox(
+                      width: c.w * 0.45,
+                      child: Align(alignment: Alignment.centerRight, child: c.signature(c.on(c.secondary)))),
+                ])),
           ),
         ),
       ]),
@@ -972,14 +1074,17 @@ Widget _vague(CardCtx c) {
               c.logo(c.h * ratio * 0.62, fallbackBg: Colors.white, fallbackFg: c.primary),
               SizedBox(width: 1.4 * u),
               Expanded(
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      c.line(c.school.name.toUpperCase(), c.st(2.2, color: fg, weight: FontWeight.w800)),
-                      c.line('${c.t.title}  ·  ${c.school.schoolYear}',
-                          c.st(1.45, color: fg, weight: FontWeight.w600, spacing: 0.1)),
-                    ]),
+                child: c.layer(
+                    'header',
+                    Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          c.line(c.school.name.toUpperCase(), c.st(2.2, color: fg, weight: FontWeight.w800)),
+                          c.line('${c.t.title}  ·  ${c.school.schoolYear}',
+                              c.st(1.45, color: fg, weight: FontWeight.w600, spacing: 0.1)),
+                        ]),
+                    origin: Alignment.centerLeft),
               ),
             ]),
           ),
@@ -994,12 +1099,14 @@ Widget _vague(CardCtx c) {
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(2.4 * u, 0, 2.4 * u, c.h * 0.075),
-          child: Row(children: [
-            Expanded(
-                child: c.line(c.school.phone.isEmpty ? '' : 'Tél. ${c.school.phone}',
-                    c.st(1.35, color: const Color(0xFF7A6A60)))),
-            c.signature(const Color(0xFF7A6A60)),
-          ]),
+          child: c.layer(
+              'footer',
+              Row(children: [
+                Expanded(
+                    child: c.line(c.school.phone.isEmpty ? '' : 'Tél. ${c.school.phone}',
+                        c.st(1.35, color: const Color(0xFF7A6A60)))),
+                c.signature(const Color(0xFF7A6A60)),
+              ])),
         ),
       ]),
     ]),
@@ -1047,11 +1154,16 @@ Widget _badge(CardCtx c) {
                 c.logo(c.h * 0.18, fallbackBg: Colors.white, fallbackFg: c.primary),
                 SizedBox(width: 1.4 * u),
                 Expanded(
-                    flex: 3, child: c.line(c.school.name.toUpperCase(), c.st(2.2, color: fg, weight: FontWeight.w800))),
+                    flex: 3,
+                    child: c.layer(
+                        'header', c.line(c.school.name.toUpperCase(), c.st(2.2, color: fg, weight: FontWeight.w800)),
+                        origin: Alignment.centerLeft)),
                 SizedBox(width: 2 * u),
                 Flexible(
-                    child: c.line(c.t.title, c.st(1.6, color: c.accent, weight: FontWeight.w800),
-                        align: Alignment.centerRight)),
+                    child: c.layer(
+                        'title',
+                        c.line(c.t.title, c.st(1.6, color: c.accent, weight: FontWeight.w800),
+                            align: Alignment.centerRight))),
               ]),
             ),
           ),
@@ -1060,10 +1172,12 @@ Widget _badge(CardCtx c) {
           Container(
             color: c.secondary,
             padding: EdgeInsets.symmetric(horizontal: 2.2 * u, vertical: 0.5 * u),
-            child: Row(children: [
-              Expanded(child: c.line(c.year, c.st(1.5, color: c.on(c.secondary), weight: FontWeight.w700))),
-              c.signature(c.on(c.secondary)),
-            ]),
+            child: c.layer(
+                'footer',
+                Row(children: [
+                  Expanded(child: c.line(c.year, c.st(1.5, color: c.on(c.secondary), weight: FontWeight.w700))),
+                  c.signature(c.on(c.secondary)),
+                ])),
           ),
         ]),
       ]),
@@ -1091,30 +1205,42 @@ Widget _badge(CardCtx c) {
             c.logo(6.5 * u, fallbackBg: Colors.white, fallbackFg: c.primary),
             SizedBox(width: 1.2 * u),
             Flexible(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                c.line(c.school.name.toUpperCase(), c.st(1.9, color: fg, weight: FontWeight.w800)),
-                c.line(c.t.title, c.st(1.4, color: c.accent, weight: FontWeight.w800, spacing: 0.15)),
-              ]),
+              child: c.layer(
+                  'header',
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    c.line(c.school.name.toUpperCase(), c.st(1.9, color: fg, weight: FontWeight.w800)),
+                    c.line(c.t.title, c.st(1.4, color: c.accent, weight: FontWeight.w800, spacing: 0.15)),
+                  ])),
             ),
           ]),
         ),
         SizedBox(height: math.max(0.0, c.h * ratio - 13 * u - photoSize * 0.45)),
-        c.photoWithStamp(photoSize * c.t.photoScale.clamp(0.7, 1.1), photoSize * c.t.photoScale.clamp(0.7, 1.1),
-            circle: true, border: Colors.white),
-        if (c.hasSigner) c.line(c.school.signerName, c.st(1.6, weight: FontWeight.w800), align: Alignment.center),
+        c.layer(
+          'photo',
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            c.photoWithStamp(photoSize * c.t.photoScale.clamp(0.7, 1.1), photoSize * c.t.photoScale.clamp(0.7, 1.1),
+                circle: true, border: Colors.white),
+            if (c.hasSigner) c.line(c.school.signerName, c.st(1.6, weight: FontWeight.w800), align: Alignment.center),
+          ]),
+        ),
         SizedBox(height: 1 * u),
-        if (c.t.shows('nomPrenom')) ...[
-          c.line(c.s.nom.toUpperCase(), c.st(3.3 * c.t.textScale, color: c.primary, weight: FontWeight.w900),
-              align: Alignment.center),
-          c.line(c.s.prenom, c.st(2.4 * c.t.textScale, weight: FontWeight.w600), align: Alignment.center),
-        ],
-        SizedBox(height: 0.8 * u),
-        if (c.t.shows('classe') && c.s.classe.isNotEmpty)
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 2.4 * u, vertical: 0.4 * u),
-            decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(3 * u)),
-            child: Text(c.s.classe, style: c.st(2, color: c.on(c.accent), weight: FontWeight.w800)),
-          ),
+        c.layer(
+          'name',
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            if (c.t.shows('nomPrenom')) ...[
+              c.line(c.s.nom.toUpperCase(), c.st(3.3 * c.t.textScale, color: c.primary, weight: FontWeight.w900),
+                  align: Alignment.center),
+              c.line(c.s.prenom, c.st(2.4 * c.t.textScale, weight: FontWeight.w600), align: Alignment.center),
+            ],
+            SizedBox(height: 0.8 * u),
+            if (c.t.shows('classe') && c.s.classe.isNotEmpty)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 2.4 * u, vertical: 0.4 * u),
+                decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(3 * u)),
+                child: Text(c.s.classe, style: c.st(2, color: c.on(c.accent), weight: FontWeight.w800)),
+              ),
+          ]),
+        ),
         SizedBox(height: 1.2 * u),
         Expanded(
           child: Padding(
@@ -1123,12 +1249,15 @@ Widget _badge(CardCtx c) {
               Expanded(
                 child: Column(children: [
                   Expanded(
-                    child: c.info(
-                        label: const Color(0xFF6B6266),
-                        value: const Color(0xFF1E1A1B),
-                        includeName: false,
-                        size: 1.85,
-                        labelWidth: 9.5),
+                    child: c.layer(
+                        'info',
+                        c.info(
+                            label: const Color(0xFF6B6266),
+                            value: const Color(0xFF1E1A1B),
+                            includeName: false,
+                            size: 1.85,
+                            labelWidth: 9.5),
+                        origin: Alignment.topLeft),
                   ),
                 ]),
               ),
@@ -1141,10 +1270,13 @@ Widget _badge(CardCtx c) {
           width: double.infinity,
           color: c.secondary,
           padding: EdgeInsets.symmetric(horizontal: 2.4 * u, vertical: 0.7 * u),
-          child: Row(children: [
-            Expanded(child: c.line(c.school.schoolYear, c.st(1.6, color: c.on(c.secondary), weight: FontWeight.w700))),
-            c.signature(c.on(c.secondary)),
-          ]),
+          child: c.layer(
+              'footer',
+              Row(children: [
+                Expanded(
+                    child: c.line(c.school.schoolYear, c.st(1.6, color: c.on(c.secondary), weight: FontWeight.w700))),
+                c.signature(c.on(c.secondary)),
+              ])),
         ),
       ]),
     ]),
@@ -1165,7 +1297,8 @@ Widget _minimal(CardCtx c) {
         alignment: Alignment.center,
         child: RotatedBox(
           quarterTurns: 3,
-          child: Text(c.t.title, style: c.st(1.7, color: c.on(c.primary), weight: FontWeight.w800, spacing: 0.4)),
+          child: c.layer('title',
+              Text(c.t.title, style: c.st(1.7, color: c.on(c.primary), weight: FontWeight.w800, spacing: 0.4))),
         ),
       ),
       Expanded(
@@ -1174,10 +1307,13 @@ Widget _minimal(CardCtx c) {
             padding: EdgeInsets.fromLTRB(2.4 * u, 1.6 * u, 2.4 * u, 0.6 * u),
             child: Row(children: [
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  c.line(c.school.name, c.st(2.2, color: c.primary, weight: FontWeight.w800)),
-                  c.line(c.year, c.st(1.4, color: grey)),
-                ]),
+                child: c.layer(
+                    'header',
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      c.line(c.school.name, c.st(2.2, color: c.primary, weight: FontWeight.w800)),
+                      c.line(c.year, c.st(1.4, color: grey)),
+                    ]),
+                    origin: Alignment.centerLeft),
               ),
               c.logo(6.5 * u),
             ]),
@@ -1192,13 +1328,15 @@ Widget _minimal(CardCtx c) {
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(2.4 * u, 0, 2.4 * u, 1 * u),
-            child: Row(children: [
-              Expanded(
-                child: c.line(
-                    [c.school.address, c.school.phone].where((e) => e.isNotEmpty).join(' · '), c.st(1.3, color: grey)),
-              ),
-              c.signature(grey),
-            ]),
+            child: c.layer(
+                'footer',
+                Row(children: [
+                  Expanded(
+                    child: c.line([c.school.address, c.school.phone].where((e) => e.isNotEmpty).join(' · '),
+                        c.st(1.3, color: grey)),
+                  ),
+                  c.signature(grey),
+                ])),
           ),
         ]),
       ),
@@ -1232,11 +1370,14 @@ Widget _prestige(CardCtx c) {
             c.logo(7.5 * u, fallbackBg: gold, fallbackFg: c.primary),
             SizedBox(width: 1.4 * u),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                c.line(
-                    c.school.name.toUpperCase(), c.st(2.2, color: Colors.white, weight: FontWeight.w800, spacing: 0.1)),
-                c.line(c.t.title, c.st(1.55, color: gold, weight: FontWeight.w700, spacing: 0.35)),
-              ]),
+              child: c.layer(
+                  'header',
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    c.line(c.school.name.toUpperCase(),
+                        c.st(2.2, color: Colors.white, weight: FontWeight.w800, spacing: 0.1)),
+                    c.line(c.t.title, c.st(1.55, color: gold, weight: FontWeight.w700, spacing: 0.35)),
+                  ]),
+                  origin: Alignment.centerLeft),
             ),
           ]),
         ),
@@ -1251,10 +1392,12 @@ Widget _prestige(CardCtx c) {
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(2 * u, 0, 2 * u, 0.8 * u),
-          child: Row(children: [
-            Expanded(child: c.line(c.year, c.st(1.45, color: gold, weight: FontWeight.w700))),
-            c.signature(gold),
-          ]),
+          child: c.layer(
+              'footer',
+              Row(children: [
+                Expanded(child: c.line(c.year, c.st(1.45, color: gold, weight: FontWeight.w700))),
+                c.signature(gold),
+              ])),
         ),
       ]),
     ),
@@ -1301,14 +1444,18 @@ Widget _cahier(CardCtx c) {
               c.logo(7 * u),
               SizedBox(width: 1.4 * u),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  c.line(c.school.name, c.st(2.3, color: c.primary, weight: FontWeight.w800, italic: true)),
-                  Container(
-                    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.secondary, width: 0.3 * u))),
-                    child:
-                        Text(c.t.title, style: c.st(1.6, color: c.secondary, weight: FontWeight.w800, spacing: 0.25)),
-                  ),
-                ]),
+                child: c.layer(
+                    'header',
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      c.line(c.school.name, c.st(2.3, color: c.primary, weight: FontWeight.w800, italic: true)),
+                      Container(
+                        decoration:
+                            BoxDecoration(border: Border(bottom: BorderSide(color: c.secondary, width: 0.3 * u))),
+                        child: Text(c.t.title,
+                            style: c.st(1.6, color: c.secondary, weight: FontWeight.w800, spacing: 0.25)),
+                      ),
+                    ]),
+                    origin: Alignment.centerLeft),
               ),
               Text(c.school.schoolYear, style: c.st(1.5, color: c.primary, weight: FontWeight.w700)),
             ]),
@@ -1323,15 +1470,109 @@ Widget _cahier(CardCtx c) {
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(1.6 * u, 0, 2.2 * u, 0.8 * u),
-            child: Row(children: [
-              Expanded(
-                  child: c.line(c.school.phone.isEmpty ? '' : 'Tél. ${c.school.phone}',
-                      c.st(1.3, color: const Color(0xFF5C6370)))),
-              c.signature(const Color(0xFF5C6370)),
-            ]),
+            child: c.layer(
+                'footer',
+                Row(children: [
+                  Expanded(
+                      child: c.line(c.school.phone.isEmpty ? '' : 'Tél. ${c.school.phone}',
+                          c.st(1.3, color: const Color(0xFF5C6370)))),
+                  c.signature(const Color(0xFF5C6370)),
+                ])),
           ),
         ]),
       ),
     ]),
   );
+}
+
+// ---------------------------------------------------------------------------
+/// Sélection et déplacement des calques dans l'éditeur de disposition.
+class LayerEditor extends ChangeNotifier {
+  String? selected;
+  final VoidCallback onChanged;
+  double _startScale = 1;
+
+  LayerEditor({required this.onChanged});
+
+  void select(String? id) {
+    selected = id;
+    notifyListeners();
+  }
+
+  void begin(String id, CardTemplate t) {
+    selected = id;
+    _startScale = t.layer(id).scale;
+    notifyListeners();
+  }
+
+  /// [deltaMm] : déplacement du doigt en millimètres ; [pinch] : facteur de pincement.
+  void update(String id, CardTemplate t, Offset deltaMm, double pinch) {
+    if (selected != id) return;
+    final a = t.layer(id);
+    a.dx = (a.dx + deltaMm.dx).clamp(-t.widthMm, t.widthMm).toDouble();
+    a.dy = (a.dy + deltaMm.dy).clamp(-t.heightMm, t.heightMm).toDouble();
+    if (pinch != 1) a.scale = (_startScale * pinch).clamp(0.3, 3.0).toDouble();
+    onChanged();
+  }
+
+  void end() {}
+}
+
+/// Filigrane répété « VERSION D'ESSAI » posé sur les cartes en mode test.
+class TrialWatermark extends StatelessWidget {
+  final double u;
+  const TrialWatermark({super.key, required this.u});
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(painter: _WatermarkPainter(u));
+}
+
+class _WatermarkPainter extends CustomPainter {
+  final double u;
+  _WatermarkPainter(this.u);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: 'VERSION D\'ESSAI  •  NON VALABLE',
+        style: TextStyle(
+          fontSize: 3.4 * u,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.3 * u,
+          color: const Color(0x66E31E24),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(-0.42);
+    final stepY = tp.height * 2.6;
+    final stepX = tp.width + 6 * u;
+    final r = (size.width + size.height);
+    var row = 0;
+    for (double y = -r; y < r; y += stepY, row++) {
+      final shift = row.isEven ? 0.0 : stepX / 2;
+      for (double x = -r - shift; x < r; x += stepX) {
+        tp.paint(canvas, Offset(x, y));
+      }
+    }
+    canvas.restore();
+    // Bandeau central
+    final band = Paint()..color = const Color(0x40E31E24);
+    canvas.drawRect(Rect.fromLTWH(0, size.height * 0.44, size.width, size.height * 0.12), band);
+    final big = TextPainter(
+      text: TextSpan(
+        text: 'ESSAI',
+        style: TextStyle(
+            fontSize: 5.5 * u, fontWeight: FontWeight.w900, color: const Color(0xCCFFFFFF), letterSpacing: 1.2 * u),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    big.paint(canvas, Offset((size.width - big.width) / 2, size.height * 0.5 - big.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(_WatermarkPainter o) => o.u != u;
 }

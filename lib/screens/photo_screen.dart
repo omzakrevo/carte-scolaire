@@ -10,9 +10,12 @@ import '../app_state.dart';
 import '../designs/card_designs.dart';
 import '../main.dart' show isDesktop;
 import '../models.dart';
+import '../services/license.dart';
 import '../services/phone_bridge.dart';
 import '../services/photo_utils.dart';
 import '../widgets/common.dart';
+import 'guided_camera_screen.dart';
+import 'photo_crop_screen.dart';
 import 'students_screen.dart' show editStudent;
 
 class PhotoScreen extends StatefulWidget {
@@ -41,11 +44,20 @@ class _PhotoScreenState extends State<PhotoScreen> {
 
   AppState get _state => AppScope.read(context);
 
-  Future<void> _applyPhoto(Student s, Uint8List bytes, {bool advance = false}) async {
+  /// Ajoute une photo : avec [crop], ouvre l'écran de cadrage ; sinon cadrage automatique
+  /// (photos reçues du téléphone). La photo d'origine est gardée pour recadrer plus tard.
+  Future<void> _applyPhoto(Student s, Uint8List bytes, {bool advance = false, bool crop = true}) async {
     setState(() => _working = true);
     try {
-      final prepared = await preparePhoto(bytes);
-      _state.setPhoto(s, prepared);
+      final original = await normalizeOriginal(bytes);
+      if (crop && mounted) {
+        setState(() => _working = false);
+        final r = await PhotoCropScreen.open(context, original, title: s.fullName);
+        if (r == null) return;
+        _state.setPhoto(s, r.photo, original: r.original);
+      } else {
+        _state.setPhoto(s, await preparePhoto(original), original: original);
+      }
       if (advance && _state.currentIndex < _state.students.length - 1) _state.move(1);
     } catch (e) {
       if (mounted) toast(context, 'Photo illisible. Réessayez avec une image JPEG ou PNG.', error: true);
@@ -53,6 +65,14 @@ class _PhotoScreenState extends State<PhotoScreen> {
     } finally {
       if (mounted) setState(() => _working = false);
     }
+  }
+
+  Future<void> _recrop(Student s) async {
+    final src = s.original ?? s.photo;
+    if (src == null) return;
+    final r = await PhotoCropScreen.open(context, src, title: s.fullName);
+    if (r == null) return;
+    _state.setPhoto(s, r.photo, original: r.original);
   }
 
   Future<void> _pickFile() async {
@@ -76,7 +96,20 @@ class _PhotoScreenState extends State<PhotoScreen> {
   Future<void> _takePhoto() async {
     final s = _state.current;
     if (s == null) return;
+    Uint8List? shot;
     try {
+      // Appareil photo intégré avec gabarit de cadrage.
+      shot = await GuidedCameraScreen.open(context, s.fullName);
+      if (shot == null) return;
+    } catch (_) {
+      shot = null;
+    }
+    if (shot != null) {
+      await _applyPhoto(s, shot).catchError((_) {});
+      return;
+    }
+    try {
+      // Sinon, l'appareil photo du système.
       final x = await ImagePicker().pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.rear,
@@ -107,7 +140,7 @@ class _PhotoScreenState extends State<PhotoScreen> {
         onPhoto: (bytes) async {
           final c = _state.current;
           if (c == null) throw StateError('Aucun élève sélectionné');
-          await _applyPhoto(c, bytes, advance: _autoAdvance);
+          await _applyPhoto(c, bytes, advance: _autoAdvance, crop: false);
         },
         onNavigate: (d) => _state.move(d),
       );
@@ -221,6 +254,12 @@ class _PhotoScreenState extends State<PhotoScreen> {
         label: Text(isDesktop ? 'Choisir un fichier' : 'Galerie'),
       ),
       if (s.photo != null)
+        OutlinedButton.icon(
+          onPressed: _working ? null : () => _recrop(s),
+          icon: const Icon(Icons.crop),
+          label: const Text('Recadrer'),
+        ),
+      if (s.photo != null)
         TextButton.icon(
           onPressed: () => state.setPhoto(s, null),
           icon: const Icon(Icons.hide_image_outlined),
@@ -303,7 +342,12 @@ class _PhotoScreenState extends State<PhotoScreen> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 6))],
                 ),
-                child: CardView(template: state.template, school: state.school, student: s, scale: 6.5),
+                child: CardView(
+                    template: state.template,
+                    school: state.school,
+                    student: s,
+                    scale: 6.5,
+                    watermark: LicenseScope.trialOf(context)),
               ),
             ),
             if (_working) const CircularProgressIndicator(),

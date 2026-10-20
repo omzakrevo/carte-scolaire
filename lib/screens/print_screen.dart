@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../services/license.dart';
 import '../services/pdf_export.dart';
 import '../widgets/common.dart';
 
@@ -50,6 +51,7 @@ class PrintScreen extends StatelessWidget {
         template: state.template,
         school: state.school,
         layout: state.layout,
+        watermark: LicenseScope.trialOf(context),
         onProgress: (d, t) => progress.value = (d, t),
         cancelled: () => cancelled,
       );
@@ -163,9 +165,27 @@ class PrintScreen extends StatelessWidget {
       ],
     ]);
 
+    final trial = LicenseScope.trialOf(context);
     final summary = Section(
       title: 'Récapitulatif',
       children: [
+        if (trial)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFFFF1E6), borderRadius: BorderRadius.circular(12)),
+            child: const Row(children: [
+              Icon(Icons.water_drop_outlined, color: Color(0xFFB25E00)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Version d\'essai : les cartes générées portent le filigrane « VERSION D\'ESSAI ». '
+                  'Activez une licence (bouton en haut) pour des cartes utilisables.',
+                  style: TextStyle(color: Color(0xFF5A3300)),
+                ),
+              ),
+            ]),
+          ),
         _Line('Cartes', '${list.length}'),
         _Line('Format de carte',
             '${t.widthMm.toStringAsFixed(1).replaceAll('.0', '').replaceAll('.', ',')} × ${t.heightMm.toStringAsFixed(1).replaceAll('.0', '').replaceAll('.', ',')} mm'),

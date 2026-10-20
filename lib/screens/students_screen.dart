@@ -71,6 +71,22 @@ class _StudentsScreenState extends State<StudentsScreen> {
     }
   }
 
+  Future<void> _downloadTemplate() async {
+    try {
+      final uri = await FilePicker.saveFile(
+        dialogTitle: 'Enregistrer le modèle Excel',
+        fileName: 'modele_liste_eleves.xlsx',
+        bytes: buildExcelTemplate(),
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      if (uri != null && mounted) {
+        toast(context, 'Modèle Excel enregistré. Remplissez la feuille « Élèves » puis importez-le.');
+      }
+    } catch (e) {
+      if (mounted) toast(context, 'Enregistrement impossible : $e', error: true);
+    }
+  }
+
   void _showFormatHelp() {
     showDialog(
       context: context,
@@ -124,6 +140,11 @@ class _StudentsScreenState extends State<StudentsScreen> {
         icon: const Icon(Icons.person_add_alt),
         label: const Text('Saisir un élève'),
       ),
+      OutlinedButton.icon(
+        onPressed: _downloadTemplate,
+        icon: const Icon(Icons.download),
+        label: const Text('Télécharger le modèle Excel'),
+      ),
       IconButton(tooltip: 'Format du fichier', onPressed: _showFormatHelp, icon: const Icon(Icons.help_outline)),
       if (state.students.isNotEmpty)
         TextButton.icon(
@@ -175,7 +196,7 @@ class _StudentsScreenState extends State<StudentsScreen> {
       ),
       Expanded(
         child: state.students.isEmpty
-            ? _Empty(onImport: _import, onHelp: _showFormatHelp)
+            ? _Empty(onImport: _import, onHelp: _showFormatHelp, onTemplate: _downloadTemplate)
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                 itemCount: list.length,
@@ -247,7 +268,8 @@ class _StudentsScreenState extends State<StudentsScreen> {
 class _Empty extends StatelessWidget {
   final VoidCallback onImport;
   final VoidCallback onHelp;
-  const _Empty({required this.onImport, required this.onHelp});
+  final VoidCallback onTemplate;
+  const _Empty({required this.onImport, required this.onHelp, required this.onTemplate});
 
   @override
   Widget build(BuildContext context) => Center(
@@ -267,6 +289,11 @@ class _Empty extends StatelessWidget {
                 onPressed: onImport,
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Importer un fichier Excel')),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+                onPressed: onTemplate,
+                icon: const Icon(Icons.download),
+                label: const Text('Télécharger le modèle Excel à remplir')),
             const SizedBox(height: 4),
             TextButton(onPressed: onHelp, child: const Text('Voir le format attendu')),
           ]),
@@ -281,6 +308,7 @@ Future<Student?> editStudent(BuildContext context, Student? s,
       ? Student(classe: defaultClass ?? '')
       : (Student.fromJson(s.toJson())
         ..photo = s.photo
+        ..original = s.original
         ..photoVersion = s.photoVersion);
   final form = GlobalKey<FormState>();
   return showDialog<Student>(

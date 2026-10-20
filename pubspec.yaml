@@ -19,11 +19,37 @@ dependencies:
   screenshot: ^3.0.0
   qr_flutter: ^4.1.0
   path_provider: ^2.1.4
+  camera: ^0.12.1
+  cryptography: ^2.9.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/logo_512.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/icon.png
+  image_path_ios: assets/icon/icon_square.png
+  remove_alpha_ios: true
+  adaptive_icon_background: "#1B2A6B"
+  adaptive_icon_foreground: assets/icon/foreground.png
+  min_sdk_android: 21
+  windows:
+    generate: true
+    image_path: assets/icon/icon.png
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: assets/icon/icon_square.png
+  linux:
+    generate: true
+    image_path: assets/icon/icon.png

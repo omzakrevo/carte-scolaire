@@ -153,7 +153,9 @@ String? _fieldFor(String header) {
       has('tel') ||
       has('phone') ||
       has('parent') ||
-      has('tuteur')) return 'contact';
+      has('tuteur')) {
+    return 'contact';
+  }
   if (has('matricule') || h == 'mat' || h == 'n' || h == 'no' || has('numero') || h == 'id' || h == 'ine') {
     return 'matricule';
   }
@@ -244,4 +246,66 @@ String _fixDate(String v) {
   final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(v);
   if (m != null) return '${m[3]}/${m[2]}/${m[1]}';
   return v;
+}
+
+/// Modèle Excel vierge à remplir : une feuille « Élèves » avec les bonnes
+/// colonnes, et une feuille « Mode d'emploi » avec un exemple.
+Uint8List buildExcelTemplate() {
+  final excel = Excel.createExcel();
+  final first = excel.getDefaultSheet()!;
+  excel.rename(first, 'Élèves');
+  final sheet = excel['Élèves'];
+  const headers = [
+    'Matricule',
+    'Nom',
+    'Prénom(s)',
+    'Classe',
+    'Date de naissance',
+    'Lieu de naissance',
+    'Sexe',
+    'Personne à prévenir',
+  ];
+  const widths = [16.0, 18.0, 24.0, 10.0, 18.0, 20.0, 8.0, 22.0];
+  final head = CellStyle(
+    bold: true,
+    fontColorHex: ExcelColor.fromHexString('#FFFFFFFF'),
+    backgroundColorHex: ExcelColor.fromHexString('#FF1B2A6B'),
+    horizontalAlign: HorizontalAlign.Center,
+  );
+  for (var i = 0; i < headers.length; i++) {
+    final c = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+    c.value = TextCellValue(headers[i]);
+    c.cellStyle = head;
+    sheet.setColumnWidth(i, widths[i]);
+  }
+
+  final help = excel['Mode d\'emploi'];
+  final lines = [
+    'Comment remplir la liste des élèves',
+    '',
+    '1. Remplissez la feuille « Élèves » : une ligne par élève, à partir de la ligne 2.',
+    '2. Ne modifiez pas les titres de la première ligne.',
+    '3. Seule la colonne « Nom » est obligatoire. Les autres peuvent rester vides.',
+    '4. Date de naissance au format jj/mm/aaaa (ex. 12/03/2015).',
+    '5. Sexe : M ou F.',
+    '6. Personne à prévenir : numéro de téléphone d\'un parent ou tuteur.',
+    '7. Enregistrez le fichier puis importez-le dans l\'application (onglet Élèves).',
+    '',
+    'Exemple :',
+  ];
+  for (var i = 0; i < lines.length; i++) {
+    help.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i)).value = TextCellValue(lines[i]);
+  }
+  help.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).cellStyle = CellStyle(bold: true, fontSize: 14);
+  const example = ['24T-96', 'OUATTARA', 'Daouda', '3e', '31/12/2007', 'Nadjengoala', 'M', '54 15 33 29'];
+  final r0 = lines.length;
+  for (var i = 0; i < headers.length; i++) {
+    help.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: r0))
+      ..value = TextCellValue(headers[i])
+      ..cellStyle = head;
+    help.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: r0 + 1)).value = TextCellValue(example[i]);
+    help.setColumnWidth(i, widths[i] + (i == 0 ? 50 : 0));
+  }
+  excel.setDefaultSheet('Élèves');
+  return Uint8List.fromList(excel.encode()!);
 }

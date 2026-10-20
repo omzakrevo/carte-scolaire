@@ -52,6 +52,31 @@ Sur Windows / macOS / Linux, le bouton **Caméra du téléphone** démarre un pe
 Le lien contient une clé aléatoire : seuls les téléphones qui ont scanné le QR code peuvent envoyer des photos.
 Sous Windows, accepter la demande du pare-feu (réseaux privés) au premier lancement.
 
+
+## Projets
+
+Un projet par établissement (onglet **Projets**) : modèle, établissement, élèves et photos sont gardés séparément. Créer, ouvrir, renommer, dupliquer, supprimer.
+
+## Disposition des éléments
+
+Dans **Modèle → Déplacer et redimensionner les éléments** : touchez un élément (photo, logo, armoiries, cachet, texte du haut, titre, infos de l'élève, texte du bas, QR code) puis glissez-le ; pincez ou utilisez le curseur pour l'agrandir ou le réduire. Chaque élément peut aussi être masqué.
+
+## Photos
+
+- **Recadrage** : après chaque photo, un écran de cadrage au format de la carte (3:4) avec un gabarit (ovale du visage, ligne des yeux). Le bouton **Recadrer** permet de refaire le cadrage plus tard à partir de la photo d'origine.
+- **Appareil photo guidé** (Android, iPhone) : la prise de vue se fait directement dans le cadre de la carte, visage dans l'ovale.
+
+## Modèles partageables
+
+**Mes modèles → Exporter en fichier ZIP** produit `modele.json` + `fond.jpg`, `logo.png`, `armoiries.png`, `cachet.png`. **Ajouter un modèle** accepte ce ZIP (ou un `.carte.json`). Un ZIP contenant seulement `fond.png` (et éventuellement `logo.png`, `cachet.png`…) crée directement un modèle « Fond personnalisé ».
+
+## Licences et mot de passe
+
+- Au premier lancement, l'utilisateur choisit un **mot de passe** ; l'application se verrouille à chaque ouverture.
+- Sans licence, l'application fonctionne en **version d'essai** : les cartes générées portent le filigrane « VERSION D'ESSAI ».
+- Une licence (1, 3, 6 mois, 1 an ou définitive) est un **code signé** lié à l'identifiant de l'appareil. Il est vérifié sur le téléphone, sans base de données : la signature se fait avec une clé privée que seul l'administrateur possède (jamais publiée sur GitHub).
+- **Page administrateur** : https://omzakrevo.github.io/carte-scolaire/admin/ — attribuer, révoquer, codes de réinitialisation du mot de passe, sauvegarde. Elle publie `licenses/registry.json` (révocations) que l'application consulte quand elle a Internet.
+
 ## Format du fichier Excel
 
 Le fichier `modele_liste_eleves.xlsx` sert d'exemple. Les colonnes sont reconnues d'après leur titre, dans n'importe quel ordre :

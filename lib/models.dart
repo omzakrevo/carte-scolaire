@@ -16,6 +16,9 @@ class Student {
   String sexe;
   String contact;
   Uint8List? photo;
+
+  /// Photo d'origine (avant recadrage), pour pouvoir recadrer à nouveau.
+  Uint8List? original;
   int photoVersion;
   bool validated;
 
@@ -30,6 +33,7 @@ class Student {
     this.sexe = '',
     this.contact = '',
     this.photo,
+    this.original,
     this.photoVersion = 0,
     this.validated = false,
   }) : id = id ?? newId();
@@ -225,6 +229,9 @@ class CardTemplate {
   double headerSpace;
   double footerSpace;
 
+  /// Position, taille et visibilité de chaque calque (voir [cardLayers]).
+  Map<String, LayerAdjust> layers;
+
   CardTemplate({
     this.designId = 'identite',
     this.widthMm = 85.6,
@@ -244,12 +251,15 @@ class CardTemplate {
     this.background,
     this.headerSpace = 0.3,
     this.footerSpace = 0.12,
-  })  : labels = {...defaultLabels, ...?labels},
+    Map<String, LayerAdjust>? layers,
+  })  : layers = layers ?? {},
+        labels = {...defaultLabels, ...?labels},
         hidden = hidden ?? <String>{};
 
   bool get landscape => widthMm >= heightMm;
 
   bool shows(String field) => !hidden.contains(field);
+  LayerAdjust layer(String id) => layers.putIfAbsent(id, () => LayerAdjust());
   String label(String field) => labels[field] ?? defaultLabels[field] ?? field;
 
   /// Copie indépendante (l'image de fond, immuable, est partagée).
@@ -277,6 +287,10 @@ class CardTemplate {
         'background': background == null ? null : base64Encode(background!),
         'headerSpace': headerSpace,
         'footerSpace': footerSpace,
+        'layers': {
+          for (final e in layers.entries)
+            if (!e.value.isDefault) e.key: e.value.toJson(),
+        },
       };
 
   factory CardTemplate.fromJson(Map<String, dynamic> j) => CardTemplate(
@@ -298,8 +312,46 @@ class CardTemplate {
         background: j['background'] == null ? null : base64Decode(j['background']),
         headerSpace: (j['headerSpace'] ?? 0.3).toDouble(),
         footerSpace: (j['footerSpace'] ?? 0.12).toDouble(),
+        layers: (j['layers'] as Map?)?.map(
+          (k, v) => MapEntry(k.toString(), LayerAdjust.fromJson(Map<String, dynamic>.from(v as Map))),
+        ),
       );
 }
+
+/// Réglage d'un calque déplaçable de la carte : décalage (mm), échelle, masqué.
+class LayerAdjust {
+  double dx;
+  double dy;
+  double scale;
+  bool hidden;
+
+  LayerAdjust({this.dx = 0, this.dy = 0, this.scale = 1, this.hidden = false});
+
+  bool get isDefault => dx == 0 && dy == 0 && scale == 1 && !hidden;
+
+  Map<String, dynamic> toJson() => {'dx': dx, 'dy': dy, 'scale': scale, 'hidden': hidden};
+
+  factory LayerAdjust.fromJson(Map<String, dynamic> j) => LayerAdjust(
+        dx: (j['dx'] ?? 0).toDouble(),
+        dy: (j['dy'] ?? 0).toDouble(),
+        scale: (j['scale'] ?? 1).toDouble(),
+        hidden: j['hidden'] ?? false,
+      );
+}
+
+/// Les calques déplaçables, avec leur nom affiché.
+const cardLayers = <String, String>{
+  'photo': 'Photo',
+  'stamp': 'Cachet',
+  'logo': 'Logo',
+  'emblem': 'Emblème / armoiries',
+  'header': 'Texte du haut',
+  'title': 'Titre',
+  'name': 'Nom en grand (portrait)',
+  'info': 'Infos de l\'élève',
+  'footer': 'Texte du bas',
+  'qr': 'QR code',
+};
 
 /// Un modèle enregistré par l'utilisateur (« Mes modèles »).
 class SavedTemplate {
@@ -307,14 +359,23 @@ class SavedTemplate {
   String name;
   CardTemplate template;
 
-  SavedTemplate({String? id, required this.name, required this.template}) : id = id ?? Student.newId();
+  /// Infos de l'établissement enregistrées avec le modèle (logo, armoiries, cachet, textes).
+  SchoolInfo? school;
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'template': template.toJson()};
+  SavedTemplate({String? id, required this.name, required this.template, this.school}) : id = id ?? Student.newId();
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'template': template.toJson(),
+        if (school != null) 'school': school!.toJson(),
+      };
 
   factory SavedTemplate.fromJson(Map<String, dynamic> j) => SavedTemplate(
         id: j['id'],
         name: j['name'] ?? 'Mon modèle',
-        template: CardTemplate.fromJson(j['template'] ?? {}),
+        template: CardTemplate.fromJson(Map<String, dynamic>.from(j['template'] ?? {})),
+        school: j['school'] == null ? null : SchoolInfo.fromJson(Map<String, dynamic>.from(j['school'])),
       );
 }
 
@@ -359,4 +420,42 @@ class PrintLayout {
     final rows = ((ph - 2 * marginMm + gapMm) / (h + gapMm)).floor();
     return (max(cols, 0), max(rows, 0));
   }
+}
+
+/// Résumé d'un projet (un établissement) pour la liste des projets.
+class ProjectInfo {
+  String id;
+  String name;
+  String schoolName;
+  int studentCount;
+  int photoCount;
+  DateTime updated;
+
+  ProjectInfo({
+    String? id,
+    required this.name,
+    this.schoolName = '',
+    this.studentCount = 0,
+    this.photoCount = 0,
+    DateTime? updated,
+  })  : id = id ?? 'p${Student.newId()}',
+        updated = updated ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'schoolName': schoolName,
+        'studentCount': studentCount,
+        'photoCount': photoCount,
+        'updated': updated.toIso8601String(),
+      };
+
+  factory ProjectInfo.fromJson(Map<String, dynamic> j) => ProjectInfo(
+        id: j['id'],
+        name: j['name'] ?? 'Projet',
+        schoolName: j['schoolName'] ?? '',
+        studentCount: j['studentCount'] ?? 0,
+        photoCount: j['photoCount'] ?? 0,
+        updated: DateTime.tryParse(j['updated'] ?? ''),
+      );
 }
