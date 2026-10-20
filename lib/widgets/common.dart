@@ -1,4 +1,14 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+/// Ouvre le sélecteur de fichiers et renvoie le nom et le contenu du fichier
+/// choisi, ou `null` si l'utilisateur annule.
+Future<(String, Uint8List)?> pickOneFile({FileType type = FileType.any, List<String>? extensions}) async {
+  final f = await FilePicker.pickFile(type: type, allowedExtensions: extensions);
+  if (f == null) return null;
+  return (f.name, await f.readAsBytes());
+}
 
 /// Champ texte qui garde son propre contrôleur (valeur initiale + callback).
 class TextSetting extends StatefulWidget {

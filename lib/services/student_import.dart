@@ -147,7 +147,13 @@ String? _fieldFor(String header) {
   if (has('prenom') || has('first')) return 'prenom';
   if (has('lieu')) return 'lieuNaissance';
   if (has('naiss') || has('ne le') || h == 'ne e le' || has('date')) return 'dateNaissance';
-  if (has('prevenir') || has('urgence') || has('contact') || has('tel') || has('phone') || has('parent') || has('tuteur')) return 'contact';
+  if (has('prevenir') ||
+      has('urgence') ||
+      has('contact') ||
+      has('tel') ||
+      has('phone') ||
+      has('parent') ||
+      has('tuteur')) return 'contact';
   if (has('matricule') || h == 'mat' || h == 'n' || h == 'no' || has('numero') || h == 'id' || h == 'ine') {
     return 'matricule';
   }

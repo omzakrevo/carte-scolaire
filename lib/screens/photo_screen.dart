@@ -61,8 +61,7 @@ class _PhotoScreenState extends State<PhotoScreen> {
     Uint8List? bytes;
     try {
       if (isDesktop) {
-        final r = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
-        bytes = r?.files.single.bytes;
+        bytes = (await pickOneFile(type: FileType.image))?.$2;
       } else {
         final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1800);
         bytes = await x?.readAsBytes();

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -21,25 +23,21 @@ class _StudentsScreenState extends State<StudentsScreen> {
 
   Future<void> _import() async {
     final state = AppScope.read(context);
-    FilePickerResult? r;
+    (String, Uint8List)? r;
     try {
-      r = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['xlsx', 'csv'],
-        withData: true,
-      );
+      r = await pickOneFile(type: FileType.custom, extensions: const ['xlsx', 'csv']);
     } catch (e) {
       if (mounted) toast(context, 'Impossible d\'ouvrir le sélecteur de fichiers : $e', error: true);
       return;
     }
-    final f = r?.files.single;
-    if (f == null || f.bytes == null) return;
+    if (r == null) return;
+    final (name, bytes) = r;
     setState(() => _busy = true);
     try {
-      final res = importStudents(f.bytes!, f.name);
+      final res = importStudents(bytes, name);
       if (!mounted) return;
       if (res.students.isEmpty) {
-        toast(context, 'Aucun élève trouvé dans « ${f.name} ». Vérifiez qu\'il y a une colonne Nom.', error: true);
+        toast(context, 'Aucun élève trouvé dans « $name ». Vérifiez qu\'il y a une colonne Nom.', error: true);
         return;
       }
       var replace = false;

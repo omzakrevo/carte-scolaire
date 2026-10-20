@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,7 +6,6 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../designs/card_designs.dart';
-import '../main.dart' show isDesktop;
 import '../models.dart';
 import '../services/photo_utils.dart';
 import '../widgets/common.dart';
@@ -453,8 +451,7 @@ class _BackgroundSection extends StatelessWidget {
 
   Future<void> _pick(BuildContext context) async {
     try {
-      final r = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
-      final bytes = r?.files.single.bytes;
+      final bytes = (await pickOneFile(type: FileType.image))?.$2;
       if (bytes == null) return;
       state.template.background = await prepareBackground(bytes);
       state.changed();
@@ -534,12 +531,12 @@ class _SavedSection extends StatelessWidget {
     final bytes = Uint8List.fromList(utf8.encode(jsonEncode({'carteScolaireModele': 1, ...s.toJson()})));
     final safe = s.name.replaceAll(RegExp(r'[^\w\- ]'), '').trim().replaceAll(' ', '_');
     try {
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         dialogTitle: 'Exporter le modèle',
         fileName: '${safe.isEmpty ? 'modele' : safe}.carte.json',
         bytes: bytes,
+        mimeType: 'application/json',
       );
-      if (path != null && isDesktop) await File(path).writeAsBytes(bytes);
       if (path != null && context.mounted) toast(context, 'Modèle « ${s.name} » exporté.');
     } catch (e) {
       if (context.mounted) toast(context, 'Export impossible : $e', error: true);
@@ -548,8 +545,7 @@ class _SavedSection extends StatelessWidget {
 
   Future<void> _import(BuildContext context) async {
     try {
-      final r = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
-      final bytes = r?.files.single.bytes;
+      final bytes = (await pickOneFile(type: FileType.any))?.$2;
       if (bytes == null) return;
       final j = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
       if (j['template'] == null) throw const FormatException();
@@ -638,8 +634,7 @@ class _SchoolSection extends StatelessWidget {
   Future<void> _pickImage(
       BuildContext context, Future<Uint8List> Function(Uint8List) prep, void Function(Uint8List) assign) async {
     try {
-      final r = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
-      final bytes = r?.files.single.bytes;
+      final bytes = (await pickOneFile(type: FileType.image))?.$2;
       if (bytes == null) return;
       assign(await prep(bytes));
       state.changed();
