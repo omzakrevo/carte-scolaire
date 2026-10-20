@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carte Scolaire – cartes d'identité scolaire en quelques clics</title>
+<meta name="description" content="Application gratuite pour créer et imprimer les cartes d'identité scolaire : import Excel, photo carte par carte, caméra du téléphone, planches A4 prêtes à découper.">
+<meta property="og:title" content="Carte Scolaire">
+<meta property="og:description" content="Créez et imprimez les cartes d'identité scolaire de tout un établissement.">
+<meta property="og:image" content="assets/hero.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Mise en page : en-tête avec la carte en vedette, puis sections pleine largeur sur une colonne de 1120 px. */
+  :root {
+    --ink: #13204f;
+    --ink-soft: #4a5578;
+    --paper: #f5f9fc;
+    --card: #ffffff;
+    --line: #dbe5ef;
+    --red: #e31e24;
+    --red-deep: #b9151a;
+    --sky: #d9eef9;
+    --gold: #fff3b0;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #eef2ff;
+      --ink-soft: #aab4d4;
+      --paper: #0d1430;
+      --card: #16204a;
+      --line: #26326a;
+      --red: #ff4a4f;
+      --red-deep: #e31e24;
+      --sky: #1a2a5e;
+      --gold: #4a3f0e;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { overflow-x: clip; margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.6 var(--body); }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: inherit; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+  h1, h2, h3 { font-family: var(--display); line-height: 1.08; margin: 0; text-wrap: balance; }
+  h2 { font-size: clamp(1.8rem, 3.6vw, 2.6rem); font-weight: 800; }
+  h3 { font-size: 1.2rem; font-weight: 800; }
+  p { margin: 0; }
+  .eyebrow { font-weight: 700; font-size: .82rem; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
+  section { padding-block: 84px; }
+  section + section { border-top: 1px solid var(--line); }
+  .lead { color: var(--ink-soft); max-width: 60ch; font-size: 1.1rem; }
+
+  /* Barre du haut */
+  .top { display: flex; align-items: center; justify-content: space-between; padding-block: 18px; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 1.2rem; text-decoration: none; }
+  .brand-mark { width: 34px; height: 22px; border-radius: 4px; background: linear-gradient(180deg, var(--red) 0 50%, #009e49 50% 100%); position: relative; }
+  .brand-mark::after { content: ""; position: absolute; inset: 0; margin: auto; width: 8px; height: 8px; background: #fcd116; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+  .top nav { display: flex; gap: 22px; font-weight: 600; }
+  .top nav a { text-decoration: none; color: var(--ink-soft); }
+  .top nav a:hover { color: var(--ink); }
+
+  /* Héros */
+  .hero > *, .bridge > *, .download > * { min-width: 0; }
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; padding-block: 40px 90px; }
+  .hero h1 { font-size: clamp(2.4rem, 5.6vw, 4.2rem); font-weight: 800; letter-spacing: -.02em; }
+  .hero h1 em { font-style: normal; color: var(--red); }
+  .hero .lead { margin-top: 20px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 12px; font-weight: 700; text-decoration: none; border: 2px solid transparent; transition: transform .15s ease, background .15s ease; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; }
+  .btn-red { background: var(--red); color: #fff; box-shadow: 0 8px 22px -10px var(--red); }
+  .btn-red:hover { background: var(--red-deep); }
+  .btn-line { border-color: var(--line); background: var(--card); }
+  .note { margin-top: 14px; font-size: .92rem; color: var(--ink-soft); }
+  .stage { position: relative; min-height: 380px; }
+  .stage .main { border-radius: 18px; box-shadow: 0 30px 60px -28px rgba(19,32,79,.55); transform: rotate(-3deg); }
+  .stage .side { position: absolute; width: 34%; right: -10px; bottom: -40px; border-radius: 14px; box-shadow: 0 24px 50px -24px rgba(19,32,79,.6); transform: rotate(6deg); border: 4px solid var(--card); }
+  @media (prefers-reduced-motion: no-preference) {
+    .stage .main { animation: lift .8s ease-out both; }
+    .stage .side { animation: lift .8s .15s ease-out both; }
+    @keyframes lift { from { translate: 0 18px; } to { translate: 0 0; } }
+  }
+
+  /* Étapes */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 40px; counter-reset: step; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  .step::before { counter-increment: step; content: counter(step); display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--red); color: #fff; font-family: var(--display); font-weight: 800; margin-bottom: 14px; }
+  .step p { color: var(--ink-soft); margin-top: 8px; font-size: 1rem; }
+
+  /* Modèles */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 24px; margin-top: 40px; }
+  .gallery figure { margin: 0; }
+  .gallery img { border-radius: 12px; box-shadow: 0 14px 30px -20px rgba(19,32,79,.55); aspect-ratio: 856 / 540; object-fit: cover; width: 100%; }
+  .gallery figcaption { margin-top: 10px; font-weight: 700; }
+  .gallery figcaption span { display: block; font-weight: 400; color: var(--ink-soft); font-size: .95rem; }
+
+  /* Caméra du téléphone */
+  .bridge { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .flow { display: grid; gap: 14px; }
+  .flow div { display: flex; gap: 14px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .flow b { font-family: var(--display); color: var(--red); font-size: 1.3rem; line-height: 1; min-width: 1.4em; }
+  .flow p { font-size: 1rem; }
+
+  /* Fonctions */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px 32px; margin-top: 40px; }
+  .features p { color: var(--ink-soft); margin-top: 6px; font-size: 1rem; }
+  .features h3::before { content: ""; display: block; width: 28px; height: 4px; border-radius: 2px; background: var(--red); margin-bottom: 12px; }
+
+  /* Téléchargement */
+  .download { background: var(--ink); color: #fff; border-radius: 24px; padding: 48px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: center; }
+  @media (prefers-color-scheme: dark) { .download { background: var(--card); border: 1px solid var(--line); } }
+  .download .lead { color: #c9d1ee; }
+  .download ol { margin: 0; padding-left: 1.2em; color: #c9d1ee; font-size: 1rem; }
+  .download ol li + li { margin-top: 6px; }
+  .download code { background: rgba(255,255,255,.1); padding: 2px 6px; border-radius: 6px; font-size: .9em; }
+
+  footer { padding-block: 40px 56px; color: var(--ink-soft); font-size: .95rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+  footer strong { color: var(--ink); }
+
+  @media (max-width: 900px) {
+    .hero, .bridge, .download { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .features { grid-template-columns: 1fr 1fr; }
+    .stage { min-height: 0; margin-bottom: 40px; }
+    .stage .side { right: 4px; width: 30%; }
+    .btn { white-space: normal; }
+    .top nav { display: none; }
+    .download { padding: 32px 24px; }
+  }
+  @media (max-width: 560px) {
+    .steps, .features { grid-template-columns: 1fr; }
+    section { padding-block: 60px; }
+  }
+</style>
+</head>
+<body>
+<header class="wrap top">
+  <a class="brand" href="#"><span class="brand-mark" aria-hidden="true"></span>Carte Scolaire</a>
+  <nav aria-label="Sections">
+    <a href="#etapes">Fonctionnement</a>
+    <a href="#modeles">Modèles</a>
+    <a href="#telephone">Caméra du téléphone</a>
+    <a href="#telecharger">Télécharger</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <p class="eyebrow">Application gratuite · Android, Windows, macOS</p>
+      <h1>Les cartes scolaires de toute l'école, <em>prêtes à imprimer</em> en une après-midi.</h1>
+      <p class="lead">Importez la liste Excel, prenez les photos carte par carte, et imprimez des planches A4 de 10 cartes au format carte bancaire, avec traits de coupe.</p>
+      <div class="cta">
+        <a class="btn btn-red" href="https://github.com/omzakrevo/carte-scolaire/releases/latest/download/carte-scolaire.apk">Télécharger l'APK Android</a>
+        <a class="btn btn-line" href="#modeles">Voir les modèles</a>
+      </div>
+      <p class="note">Fonctionne sans Internet. Les données restent sur votre appareil.</p>
+    </div>
+    <div class="stage">
+      <img class="main" src="assets/hero.jpg" width="856" height="540" alt="Carte d'identité scolaire au modèle Identité scolaire : en-tête Burkina Faso, titre rouge, photo de l'élève avec cachet, champs matricule, nom, date et lieu de naissance, sexe, classe et personne à prévenir.">
+      <img class="side" src="assets/badge-portrait.jpg" width="420" height="666" alt="Carte au format badge vertical avec photo ronde.">
+    </div>
+  </div>
+
+  <section id="etapes">
+    <div class="wrap">
+      <p class="eyebrow">Fonctionnement</p>
+      <h2>De la liste de classe à la planche imprimée</h2>
+      <div class="steps">
+        <div class="step"><h3>Choisir le modèle</h3><p>Un des 10 modèles, au format voulu en millimètres, avec le logo, les armoiries, le cachet et la devise de l'établissement.</p></div>
+        <div class="step"><h3>Importer les élèves</h3><p>Fichier Excel ou CSV : les colonnes Nom, Classe, Matricule, Personne à prévenir… sont reconnues automatiquement.</p></div>
+        <div class="step"><h3>Prendre les photos</h3><p>Carte par carte, depuis la galerie ou l'appareil photo. Recadrage automatique au format identité.</p></div>
+        <div class="step"><h3>Imprimer</h3><p>PDF en planche A4 (10 cartes par feuille) ou une carte par page pour imprimante PVC.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="modeles">
+    <div class="wrap">
+      <p class="eyebrow">Modèles</p>
+      <h2>Dix modèles, tous modifiables</h2>
+      <p class="lead" style="margin-top:14px">Titre, libellés, champs affichés, couleurs, tailles du texte et de la photo : chaque modèle s'adapte à l'établissement, en paysage comme en portrait.</p>
+      <div class="gallery">
+        <figure><img src="assets/identite.jpg" loading="lazy" width="640" height="404" alt="Modèle Identité scolaire"><figcaption>Identité scolaire<span>En-tête officiel, titre rouge, vague avec la devise de l'école</span></figcaption></figure>
+        <figure><img src="assets/officiel.jpg" loading="lazy" width="640" height="404" alt="Modèle Officiel tricolore"><figcaption>Officiel tricolore<span>Bandeau titre, liseré aux couleurs du drapeau</span></figcaption></figure>
+        <figure><img src="assets/bandeau.jpg" loading="lazy" width="640" height="404" alt="Modèle Classique bandeau"><figcaption>Classique bandeau<span>Bandeau dégradé et pied d'année scolaire</span></figcaption></figure>
+        <figure><img src="assets/diagonale.jpg" loading="lazy" width="640" height="404" alt="Modèle Moderne diagonale"><figcaption>Moderne diagonale<span>Formes obliques dans les angles</span></figcaption></figure>
+        <figure><img src="assets/vague.jpg" loading="lazy" width="640" height="404" alt="Modèle Vagues"><figcaption>Vagues<span>En-tête ondulé, ton chaleureux</span></figcaption></figure>
+        <figure><img src="assets/badge.jpg" loading="lazy" width="640" height="404" alt="Modèle Badge"><figcaption>Badge<span>Photo ronde, existe aussi en vertical</span></figcaption></figure>
+        <figure><img src="assets/minimal.jpg" loading="lazy" width="640" height="404" alt="Modèle Épuré"><figcaption>Épuré<span>Barre latérale, beaucoup de blanc</span></figcaption></figure>
+        <figure><img src="assets/prestige.jpg" loading="lazy" width="640" height="404" alt="Modèle Prestige"><figcaption>Prestige<span>Fond bleu nuit et filet doré</span></figcaption></figure>
+        <figure><img src="assets/cahier.jpg" loading="lazy" width="640" height="404" alt="Modèle Cahier d'écolier"><figcaption>Cahier d'écolier<span>Lignes et marge rouge, pour le primaire</span></figcaption></figure>
+      </div>
+      <p class="note" style="margin-top:24px">Et un modèle <strong>Fond personnalisé</strong> : créez votre fond dans Photoshop ou Illustrator, l'application place la photo et les informations de chaque élève par-dessus.</p>
+    </div>
+  </section>
+
+  <section id="telephone">
+    <div class="wrap bridge">
+      <div>
+        <p class="eyebrow">Sur ordinateur</p>
+        <h2>Le téléphone devient l'appareil photo de l'ordinateur</h2>
+        <p class="lead" style="margin-top:16px">Pas de webcam ? Scannez le QR code affiché par l'application : chaque photo prise avec le téléphone arrive directement sur la carte de l'élève à l'écran. Rien à installer sur le téléphone, pas besoin d'Internet, seulement le même Wi-Fi.</p>
+      </div>
+      <div class="flow">
+        <div><b>1</b><p>Sur l'ordinateur, cliquez sur <strong>Caméra du téléphone</strong> : un QR code s'affiche.</p></div>
+        <div><b>2</b><p>Scannez-le avec l'appareil photo du téléphone : une page s'ouvre avec le nom de l'élève en cours.</p></div>
+        <div><b>3</b><p>Touchez <strong>Prendre la photo</strong> : elle apparaît sur la carte et l'application passe à l'élève suivant.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">Fonctions</p>
+      <h2>Pensé pour les secrétariats et les imprimeurs</h2>
+      <div class="features">
+        <div><h3>Éditeur de modèle</h3><p>Renommez chaque libellé, masquez un champ, ajustez la taille du texte et de la photo.</p></div>
+        <div><h3>Mes modèles</h3><p>Un modèle par établissement client, réutilisable chaque année, exportable vers un autre poste.</p></div>
+        <div><h3>Cachet automatique</h3><p>Photographiez le cachet sur papier : le fond blanc est retiré et le cachet se pose sur la photo.</p></div>
+        <div><h3>Import Excel intelligent</h3><p>Une colonne « Nom et prénoms » unique ou séparée, dates Excel, numéros de téléphone : tout est reconnu.</p></div>
+        <div><h3>Validation carte par carte</h3><p>Suivez les cartes validées, filtrez les élèves sans photo, n'imprimez que ce qui est prêt.</p></div>
+        <div><h3>Impression nette</h3><p>Rendu à environ 300 dpi, planches A4 centrées avec traits de coupe, filtre par classe.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="telecharger">
+    <div class="wrap">
+      <div class="download">
+        <div>
+          <p class="eyebrow" style="color:#ff8a8d">Télécharger</p>
+          <h2>Installer sur Android</h2>
+          <p class="lead" style="margin-top:14px">L'APK est compilé automatiquement à chaque mise à jour du code.</p>
+          <div class="cta">
+            <a class="btn btn-red" href="https://github.com/omzakrevo/carte-scolaire/releases/latest/download/carte-scolaire.apk">Télécharger carte-scolaire.apk</a>
+            <a class="btn btn-line" style="color:var(--ink)" href="https://github.com/omzakrevo/carte-scolaire/releases">Toutes les versions</a>
+          </div>
+        </div>
+        <ol>
+          <li>Ouvrez le lien sur le téléphone et téléchargez le fichier.</li>
+          <li>Ouvrez le fichier téléchargé.</li>
+          <li>Si Android le demande, autorisez l'installation depuis cette source.</li>
+          <li>Sur Windows ou macOS : <code>flutter build windows</code> ou <code>flutter build macos</code> depuis le code source.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <span>Développé par <strong>OMZAKREVO INFORMATIQUE</strong> · Toujours une solution !</span>
+  <span>Les cartes présentées utilisent des données d'exemple.</span>
+</footer>
+</body>
+</html>

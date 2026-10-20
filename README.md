@@ -3,6 +3,11 @@
 Application Flutter pour créer et imprimer les cartes scolaires d'un établissement.
 Fonctionne sur **Android, iPhone, Windows, macOS et Linux**, sans connexion Internet.
 
+## Télécharger
+
+- **APK Android** : [carte-scolaire.apk](https://github.com/omzakrevo/carte-scolaire/releases/latest/download/carte-scolaire.apk), compilé automatiquement à chaque mise à jour du code (onglet *Actions*, publié dans *Releases*).
+- **Site de présentation** : https://omzakrevo.github.io/carte-scolaire/ (dossier `docs/`, publié par GitHub Pages).
+
 ## Déroulement
 
 1. **Modèle** : choisir parmi 10 modèles, régler les dimensions (formats prédéfinis ou personnalisés en mm, paysage ou portrait), les couleurs et les informations de l'établissement (logo, armoiries, cachet, nom, devise, pays, devise nationale, ministère, région/province, signataire).
