@@ -188,6 +188,19 @@ const store = {
 };
 const b64 = u8 => btoa(String.fromCharCode(...u8));
 const unb64 = s => Uint8Array.from(atob(s.trim()), c => c.charCodeAt(0));
+// Lit la clé privée collée : tolère espaces, retours à la ligne, guillemets, caractères
+// invisibles (WhatsApp, Bloc-notes), format base64url, et texte autour de la clé.
+function readSeed(raw) {
+  let t = String(raw || '').replace(/[\u200B-\u200D\uFEFF\u00A0\u2060]/g, '').replace(/[«»"'`]/g, ' ');
+  const compact = t.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+  const candidates = [compact, ...(t.match(/[A-Za-z0-9+/_-]{42,44}={0,2}/g) || []).map(x => x.replace(/-/g, '+').replace(/_/g, '/'))];
+  for (let c of candidates) {
+    c = c.replace(/=+$/, '');
+    if (c.length !== 43) continue;
+    try { const b = Uint8Array.from(atob(c + '='), ch => ch.charCodeAt(0)); if (b.length === 32) return b; } catch (e) {}
+  }
+  throw new Error('Clé privée illisible. Ouvrez le fichier cle_privee_admin.txt, copiez uniquement la ligne de 44 caractères (elle se termine par « = ») et collez-la, ou utilisez le bouton « Choisir un fichier ».');
+}
 const b64url = u8 => b64(u8).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 let session = null; // { key: CryptoKey, keyPair, token }
 let licenses = store.get('licenses') || [];
@@ -214,11 +227,10 @@ async function open_(key, box) { return dec.decode(await crypto.subtle.decrypt({
 function show(view) { for (const v of ['setup', 'login', 'app']) $(v).hidden = v !== view; $('logout').hidden = view !== 'app'; }
 
 // ---------- Configuration ----------
-$('seedFile').addEventListener('change', async e => { const f = e.target.files[0]; if (f) $('seed').value = (await f.text()).trim(); });
+$('seedFile').addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; const t = await f.text(); try { readSeed(t); $('seed').value = t.trim(); alertMsg('setupMsg', 'ok', 'Clé lue depuis le fichier. Choisissez maintenant le mot de passe administrateur.'); } catch (err) { alertMsg('setupMsg', 'err', err.message); } });
 $('doSetup').addEventListener('click', async () => {
   try {
-    const seed = unb64($('seed').value);
-    if (seed.length !== 32) throw new Error('La clé doit faire 32 octets (texte base64 de 44 caractères).');
+    const seed = readSeed($('seed').value);
     if ($('p1').value.length < 8) throw new Error('Choisissez un mot de passe administrateur d\'au moins 8 caractères.');
     if ($('p1').value !== $('p2').value) throw new Error('Les deux mots de passe sont différents.');
     const kp = nacl.sign.keyPair.fromSeed(seed);
