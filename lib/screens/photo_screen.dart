@@ -347,7 +347,7 @@ class _PhotoScreenState extends State<PhotoScreen> {
                     school: state.school,
                     student: s,
                     scale: 6.5,
-                    watermark: LicenseScope.trialOf(context)),
+                    watermark: LicenseScope.watermarkOf(context, AppScope.of(context).template.kind)),
               ),
             ),
             if (_working) const CircularProgressIndicator(),

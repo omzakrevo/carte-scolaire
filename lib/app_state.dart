@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 
 import 'designs/card_designs.dart';
+import 'card_kinds.dart';
 import 'models.dart';
 import 'services/storage.dart';
 
@@ -142,6 +143,18 @@ class AppState extends ChangeNotifier {
   // ---------- Modèle ----------
   void selectDesign(CardDesign d) {
     template.designId = d.id;
+    template.primary = d.primary;
+    template.secondary = d.secondary;
+    template.accent = d.accent;
+    template.widthMm = d.defaultWidth;
+    template.heightMm = d.defaultHeight;
+    changed();
+  }
+
+  /// Change le type de carte (scolaire, membre, pro…) : titre, libellés, champs et modèle conseillé.
+  void selectKind(CardKind k) {
+    applyKind(template, k);
+    final d = designById(k.design);
     template.primary = d.primary;
     template.secondary = d.secondary;
     template.accent = d.accent;

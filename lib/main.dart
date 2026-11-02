@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'card_kinds.dart';
 import 'attendance/attendance_controller.dart';
 import 'attendance/attendance_screen.dart';
 import 'screens/photo_screen.dart';
@@ -70,33 +71,35 @@ class _HomeShellState extends State<HomeShell> {
 
   void goTo(int i) => setState(() => _index = i);
 
-  static const _dest = [
-    (Icons.folder_outlined, Icons.folder, 'Projets'),
-    (Icons.style_outlined, Icons.style, 'Modèle'),
-    (Icons.groups_outlined, Icons.groups, 'Élèves'),
-    (Icons.photo_camera_outlined, Icons.photo_camera, 'Photos'),
-    (Icons.print_outlined, Icons.print, 'Impression'),
-    (Icons.fact_check_outlined, Icons.fact_check, 'Présences'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     if (!state.loaded) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final kind = kindById(state.template.kind);
+    final attendance = LicenseScope.moduleOf(context, attendanceModule);
+    final dest = [
+      (Icons.folder_outlined, Icons.folder, 'Projets'),
+      (Icons.style_outlined, Icons.style, 'Modèle'),
+      (Icons.groups_outlined, Icons.groups, kind.people),
+      (Icons.photo_camera_outlined, Icons.photo_camera, 'Photos'),
+      (Icons.print_outlined, Icons.print, 'Impression'),
+      if (attendance) (Icons.fact_check_outlined, Icons.fact_check, 'Présences'),
+    ];
+    if (_index >= dest.length) _index = 1;
     final pages = [
       ProjectsScreen(onOpened: () => goTo(1)),
       TemplateScreen(onNext: () => goTo(2)),
       StudentsScreen(onNext: () => goTo(3)),
       PhotoScreen(onGoToStudents: () => goTo(2), onNext: () => goTo(4)),
       const PrintScreen(),
-      AttendanceScreen(active: _index == 5),
+      if (attendance) AttendanceScreen(active: _index == 5),
     ];
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final stats = Text(
       overflow: TextOverflow.ellipsis,
-      '${state.projectName} · ${state.students.length} élèves · ${state.photoCount} photos · ${state.validatedCount} validées',
+      '${state.projectName} · ${state.students.length} ${kind.people.toLowerCase()} · ${state.photoCount} photos · ${state.validatedCount} validées',
       style: Theme.of(context).textTheme.bodySmall,
     );
 
@@ -119,7 +122,7 @@ class _HomeShellState extends State<HomeShell> {
               ]),
             ),
             destinations: [
-              for (final (i, a, l) in _dest)
+              for (final (i, a, l) in dest)
                 NavigationRailDestination(icon: Icon(i), selectedIcon: Icon(a), label: Text(l)),
             ],
           ),
@@ -131,7 +134,7 @@ class _HomeShellState extends State<HomeShell> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 alignment: Alignment.centerLeft,
                 child: Row(children: [
-                  Text(_dest[_index].$3, style: Theme.of(context).textTheme.titleLarge),
+                  Text(dest[_index].$3, style: Theme.of(context).textTheme.titleLarge),
                   const Spacer(),
                   Flexible(child: stats),
                   const SizedBox(width: 12),
@@ -148,7 +151,7 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_dest[_index].$3),
+          Text(dest[_index].$3),
           stats,
         ]),
         actions: const [Padding(padding: EdgeInsets.only(right: 8), child: LicenseChip())],
@@ -158,7 +161,7 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: goTo,
         destinations: [
-          for (final (i, a, l) in _dest) NavigationDestination(icon: Icon(i), selectedIcon: Icon(a), label: l),
+          for (final (i, a, l) in dest) NavigationDestination(icon: Icon(i), selectedIcon: Icon(a), label: l),
         ],
       ),
     );

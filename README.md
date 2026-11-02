@@ -40,6 +40,22 @@ Le projet est enregistré automatiquement sur l'appareil (liste, photos, réglag
 
 Tous les modèles affichent les mêmes champs : Matricule, Nom et Prénom, Date de naissance, Lieu de naissance, Sexe, Classe, Personne à prévenir, avec le cachet sur la photo et le nom du signataire dessous. Chaque modèle s'adapte au paysage et au portrait.
 
+## Types de cartes
+
+Chaque projet choisit son type de carte ; les libellés, champs et mots de l'application s'adaptent :
+
+- **Carte scolaire** (élèves, classes) ;
+- **Carte de membre** (association, club, mutuelle, église) ;
+- **Carte professionnelle** (employés, services, fonctions) ;
+- **Carte visiteur** (badges numérotés, zone autorisée) ;
+- **Carte de visite** : 10 modèles (bandeau nom + QR, bande diagonale avec image, collage hexagonal, cercle illustré, services + galerie, panneau courbe, bandes et demi-cercle, couleur pleine…), avec services, site web et jusqu'à 9 photos de présentation, QR code « fiche contact » (vCard).
+
+**Verso** : 4 modèles de dos (logo plein fond, services et photos, galerie de réalisations, texte et mentions). L'impression recto-verso ajoute une page verso après chaque planche, colonnes inversées pour tomber au dos de la bonne carte (retournement sur le bord long).
+
+**Éléments libres** : textes (avec variables {nom}, {matricule}, {ecole}…), rectangles, cercles, lignes et images, sur le recto ou le verso ; couleur, bordure, transparence, rotation, ordre. Ils sont inclus dans l'export du modèle (ZIP/JSON), avec les couleurs et les images.
+
+**Modules** : chaque type de carte et le pointage sont activés par l'administrateur dans le code de licence (cases à cocher de la page admin). En version d'essai, tout est accessible avec le filigrane.
+
 ## Caméra du téléphone sur la version ordinateur
 
 Sur Windows / macOS / Linux, le bouton **Caméra du téléphone** démarre un petit serveur local et affiche un QR code :
@@ -77,7 +93,7 @@ Dans **Modèle → Déplacer et redimensionner les éléments** : touchez un él
 - Une licence (1, 3, 6 mois, 1 an ou définitive) est un **code signé** lié à l'identifiant de l'appareil. Il est vérifié sur le téléphone, sans base de données : la signature se fait avec une clé privée que seul l'administrateur possède (jamais publiée sur GitHub).
 - **Page administrateur** : https://omzakrevo.github.io/carte-scolaire/admin/ — attribuer, révoquer, codes de réinitialisation du mot de passe, sauvegarde. Elle publie `licenses/registry.json` (révocations) que l'application consulte quand elle a Internet.
 
-## Présences (pointage des élèves)
+## Présences (pointage des élèves et des employés)
 
 Onglet **Présences** :
 
@@ -86,6 +102,7 @@ Onglet **Présences** :
 - **Aujourd'hui** : présents, retards, absents, sortis ; corrections manuelles (présent, absence justifiée), « jour sans école ».
 - **SMS aux parents** : à l'heure choisie (09:00 par défaut), un SMS part automatiquement au numéro « Personne à prévenir » de chaque élève absent, **par la puce du téléphone Android** (aucun serveur, coût d'un SMS normal). L'application doit rester ouverte sur la borne. Message modifiable ({prenom}, {nom}, {classe}, {matricule}, {date}, {ecole}). Sur ordinateur : bouton WhatsApp. Réservé aux licences actives.
 - **Rapport Excel** : période et classe au choix ; feuilles Synthèse (taux de présence par élève), Par jour, Pointages.
+- **Mode entreprise** (cartes professionnelles et visiteurs) : heures d'arrivée et de départ, heures travaillées par jour (plusieurs entrées/sorties possibles), retards, départs anticipés, heures supplémentaires ; rapport Excel avec le total d'heures par employé.
 - Toutes les données restent sur l'appareil, dans le dossier du projet.
 
 ## Format du fichier Excel

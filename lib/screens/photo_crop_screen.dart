@@ -166,8 +166,7 @@ class _PhotoCropScreenState extends State<PhotoCropScreen> {
             child: Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 8, children: [
               _tool(Icons.rotate_left, 'Pivoter', _busy ? null : () => _rotate(false)),
               _tool(Icons.rotate_right, 'Pivoter', _busy ? null : () => _rotate(true)),
-              _tool(Icons.center_focus_strong, 'Recentrer',
-                  _busy || im == null ? null : () => _center(_frame)),
+              _tool(Icons.center_focus_strong, 'Recentrer', _busy || im == null ? null : () => _center(_frame)),
               FilledButton.icon(
                 onPressed: _busy || im == null ? null : _validate,
                 icon: const Icon(Icons.check),

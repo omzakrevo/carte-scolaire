@@ -30,7 +30,16 @@ void main() {
       expect(find.text('Choisir un modèle'), findsOneWidget);
 
       expect(find.text('Version d\'essai'), findsWidgets);
-      for (final label in ['Présences', 'Aujourd\'hui', 'Rapport Excel', 'Réglages', 'Projets', 'Élèves', 'Photos', 'Impression']) {
+      for (final label in [
+        'Présences',
+        'Aujourd\'hui',
+        'Rapport Excel',
+        'Réglages',
+        'Projets',
+        'Élèves',
+        'Photos',
+        'Impression'
+      ]) {
         await tester.tap(find.text(label).last);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
@@ -66,6 +75,8 @@ void main() {
     final id = moved.first.key;
     await tester.tap(find.text(cardLayers[id]!).first);
     await tester.pump();
+    await tester.ensureVisible(find.text('Réinitialiser cet élément'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Réinitialiser cet élément'));
     await tester.pump();
     expect(state.template.layers[id], isNull);

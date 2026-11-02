@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../card_kinds.dart';
 import '../designs/card_designs.dart';
 import '../models.dart';
 import '../services/license.dart';
@@ -11,27 +12,6 @@ import '../services/photo_utils.dart';
 import '../services/template_package.dart';
 import 'layout_editor_screen.dart';
 import '../widgets/common.dart';
-
-const _swatches = <int>[
-  0xFF009E49,
-  0xFF0B6B3A,
-  0xFF00897B,
-  0xFF1E4FA1,
-  0xFF0D1B3E,
-  0xFF1A237E,
-  0xFF6A1B9A,
-  0xFF8E1B2E,
-  0xFFEF2B2D,
-  0xFFE65100,
-  0xFFFFA000,
-  0xFFFCD116,
-  0xFFC9A646,
-  0xFF795548,
-  0xFF37474F,
-  0xFF263238,
-  0xFF90A4AE,
-  0xFF90CAF9,
-];
 
 class TemplateScreen extends StatelessWidget {
   final VoidCallback onNext;
@@ -43,11 +23,16 @@ class TemplateScreen extends StatelessWidget {
     final sample = state.current ?? Student.sample();
 
     final preview = _Preview(state: state, student: sample);
-    final gallery = _Gallery(state: state, student: sample);
+    final gallery = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _Gallery(state: state, student: sample),
+      const SizedBox(height: 20),
+      _VersoGallery(state: state, student: sample),
+    ]);
     final settings = <Widget>[
+      _KindSection(state: state),
       _SavedSection(state: state),
       _EditorSection(state: state),
-      if (state.template.designId == 'personnalise') _BackgroundSection(state: state),
+      _BackgroundSection(state: state),
       _SizeSection(state: state),
       _ColorSection(state: state),
       _SchoolSection(state: state),
@@ -57,7 +42,7 @@ class TemplateScreen extends StatelessWidget {
       child: FilledButton.icon(
         onPressed: onNext,
         icon: const Icon(Icons.arrow_forward),
-        label: const Text('Étape suivante : les élèves'),
+        label: Text('Étape suivante : ${kindById(state.template.kind).people.toLowerCase()}'),
       ),
     );
 
@@ -117,47 +102,159 @@ class _Preview extends StatelessWidget {
         ),
       ]),
       if (student.id == 'exemple')
-        Text('Données d\'exemple : importez vos élèves pour voir leurs vraies cartes.',
+        Text('Données d\'exemple : ajoutez vos fiches pour voir les vraies cartes.',
             style: Theme.of(context).textTheme.bodySmall),
       const SizedBox(height: 12),
-      Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: t.landscape ? 560 : 340, maxHeight: 520),
-          child: FittedBox(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 6))],
+      LayoutBuilder(builder: (context, box) {
+        final wm = LicenseScope.watermarkOf(context, t.kind);
+        Widget side(bool back) => Column(mainAxisSize: MainAxisSize.min, children: [
+              if (t.hasVerso)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(back ? 'Verso' : 'Recto', style: Theme.of(context).textTheme.labelLarge),
+                ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: t.landscape ? 560 : 340, maxHeight: 520),
+                child: FittedBox(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 6))],
+                    ),
+                    child: CardView(
+                        template: t, school: state.school, student: student, scale: 6, watermark: wm, back: back),
+                  ),
+                ),
               ),
-              child: CardView(
-                  template: t,
-                  school: state.school,
-                  student: student,
-                  scale: 6,
-                  watermark: LicenseScope.trialOf(context)),
+            ]);
+        if (!t.hasVerso) return Center(child: side(false));
+        final sideBySide = box.maxWidth >= (t.landscape ? 760 : 520);
+        if (sideBySide) {
+          return Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Flexible(child: side(false)),
+            const SizedBox(width: 16),
+            Flexible(child: side(true)),
+          ]);
+        }
+        return Column(children: [side(false), const SizedBox(height: 16), side(true)]);
+      }),
+    ]);
+  }
+}
+
+/// Choix du verso (dos de la carte) : aucun, ou un des modèles de verso.
+class _VersoGallery extends StatelessWidget {
+  final AppState state;
+  final Student student;
+  const _VersoGallery({required this.state, required this.student});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = state.template;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Verso (dos de la carte)', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      Text('Facultatif : à imprimer en recto-verso. Les couleurs et les infos de la structure sont reprises.',
+          style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: 8),
+      Wrap(spacing: 12, runSpacing: 12, children: [
+        InkWell(
+          onTap: () {
+            t.versoDesign = '';
+            state.changed();
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: 150,
+            height: 186,
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: !t.hasVerso ? scheme.primary : scheme.outlineVariant, width: !t.hasVerso ? 2.5 : 1),
             ),
+            child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.crop_portrait, size: 40),
+              SizedBox(height: 8),
+              Text('Pas de verso', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text('Recto seul'),
+            ]),
           ),
         ),
-      ),
+        for (final d in versoDesigns)
+          _DesignTile(
+            design: d,
+            selected: t.versoDesign == d.id,
+            onTap: () {
+              t.versoDesign = d.id;
+              state.changed();
+            },
+            scheme: scheme,
+            child: CardView(
+              template: t.copy()..versoDesign = d.id,
+              school: state.school,
+              student: student,
+              scale: 2.2,
+              back: true,
+            ),
+          ),
+      ]),
+      if (t.versoDesign == 'verso_reglement') ...[
+        const SizedBox(height: 12),
+        TextFormField(
+          key: ValueKey('versoText-${state.projectId}'),
+          initialValue: t.versoText,
+          minLines: 2,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            labelText: 'Texte du verso',
+            helperText: 'Variables : {ecole} {telephoneEcole} {adresseEcole} {siteWeb} {nom} {prenom} {matricule}',
+          ),
+          onChanged: (v) {
+            t.versoText = v;
+            state.changed();
+          },
+        ),
+      ],
     ]);
   }
 }
 
 String _mm(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1).replaceAll('.', ',');
 
-class _Gallery extends StatelessWidget {
+class _Gallery extends StatefulWidget {
   final AppState state;
   final Student student;
   const _Gallery({required this.state, required this.student});
 
   @override
+  State<_Gallery> createState() => _GalleryState();
+}
+
+class _GalleryState extends State<_Gallery> {
+  bool _all = false;
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
+    final student = widget.student;
     final scheme = Theme.of(context).colorScheme;
+    final kind = state.template.kind;
+    final designs = cardDesigns.where((d) => _all || designFits(d, kind) || d.id == state.template.designId).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Choisir un modèle', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      Row(children: [
+        Expanded(
+          child: Text('Choisir un modèle',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        ),
+        FilterChip(
+          label: const Text('Tous les modèles'),
+          selected: _all,
+          onSelected: (v) => setState(() => _all = v),
+        ),
+      ]),
       const SizedBox(height: 8),
       Wrap(spacing: 12, runSpacing: 12, children: [
-        for (final d in cardDesigns)
+        for (final d in designs)
           _DesignTile(
             design: d,
             selected: d.id == state.template.designId,
@@ -301,27 +398,9 @@ class _ColorSection extends StatelessWidget {
     Widget row(String label, int value, ValueChanged<int> set) => Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            Text('$label  ${colorHex(value)}', style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 6),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final c in _swatches)
-                InkWell(
-                  onTap: () => set(c),
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Color(c),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: c == value ? Theme.of(context).colorScheme.onSurface : Colors.black12,
-                        width: c == value ? 3 : 1,
-                      ),
-                    ),
-                  ),
-                ),
-            ]),
+            ColorRow(value: value, onChanged: set),
           ]),
         );
     return Section(
@@ -361,7 +440,10 @@ const _fieldHints = <String, String>{
   'lieuNaissance': 'Lieu de naissance',
   'sexe': 'Sexe',
   'classe': 'Classe',
-  'contact': 'Contact du parent',
+  'contact': 'Téléphone / contact',
+  'service': 'Fonction',
+  'email': 'E-mail',
+  'adresse': 'Adresse',
 };
 
 /// Textes, libellés, champs affichés, tailles : l'éditeur du modèle.
@@ -391,8 +473,9 @@ class _EditorSection extends StatelessWidget {
       subtitle: 'Textes de la carte, libellés et champs affichés',
       trailing: TextButton(
         onPressed: () => set(() {
-          t.labels = {...defaultLabels};
-          t.hidden = {};
+          final k = kindById(t.kind);
+          t.labels = {...defaultLabels, ...k.labels};
+          t.hidden = {...k.hidden};
           t.textScale = 1;
           t.photoScale = 1;
         }),
@@ -403,8 +486,14 @@ class _EditorSection extends StatelessWidget {
           style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LayoutEditorScreen())),
           icon: const Icon(Icons.open_with),
-          label: const Text('Déplacer et redimensionner les éléments'),
+          label: const Text('Disposition, textes, formes et images'),
         ),
+        if (t.elements.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text('${t.elements.length} élément(s) ajouté(s) sur la carte.',
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
         const SizedBox(height: 14),
         TextSetting(label: 'Titre de la carte', value: t.title, onChanged: (v) => set(() => t.title = v)),
         const SizedBox(height: 10),
@@ -482,11 +571,66 @@ class _BackgroundSection extends StatelessWidget {
       state.changed();
     }
 
+    final custom = t.designId == 'personnalise';
+    if (!custom) {
+      return Section(
+        title: 'Arrière-plan',
+        subtitle: 'Image posée en filigrane sur le modèle (photo du bâtiment, motif, logo agrandi…)',
+        children: [
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            FilledButton.tonalIcon(
+              onPressed: () async {
+                await _pick(context);
+                set(() => t.bgOverlay = t.background != null);
+              },
+              icon: const Icon(Icons.wallpaper),
+              label: Text(t.background == null ? 'Importer une image' : 'Changer l\'image'),
+            ),
+            if (t.background != null)
+              TextButton(
+                  onPressed: () => set(() {
+                        t.background = null;
+                        t.bgOverlay = false;
+                      }),
+                  child: const Text('Retirer')),
+          ]),
+          if (t.background != null) ...[
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Afficher l\'image sur la carte'),
+              value: t.bgOverlay,
+              onChanged: (v) => set(() => t.bgOverlay = v),
+            ),
+            Text('Opacité : ${(t.bgOpacity * 100).round()} %'),
+            Slider(
+              value: t.bgOpacity.clamp(0.05, 1.0),
+              min: 0.05,
+              max: 1,
+              divisions: 19,
+              onChanged: (v) => set(() => t.bgOpacity = v),
+            ),
+          ],
+          const Text(
+              'Pour un fond complet (image ou couleur unie), choisissez le modèle « Fond personnalisé / libre ».',
+              style: TextStyle(fontStyle: FontStyle.italic)),
+        ],
+      );
+    }
     return Section(
       title: 'Fond personnalisé',
       subtitle:
-          'Créez le fond dans Photoshop ou Illustrator (logo, titre, décor) au format ${_mm(t.widthMm)} × ${_mm(t.heightMm)} mm, puis importez-le en PNG ou JPEG.',
+          'Créez le fond dans Photoshop ou Illustrator (logo, titre, décor) au format ${_mm(t.widthMm)} × ${_mm(t.heightMm)} mm, puis importez-le en PNG ou JPEG. Sans image, la couleur choisie ci-dessous sert de fond.',
       children: [
+        if (t.background == null) ...[
+          const Text('Couleur de fond'),
+          const SizedBox(height: 6),
+          ColorRow(
+              value: t.bgColor,
+              onChanged: (v) => set(() => t.bgColor = v),
+              extra: const [0xFFFFFFFF, 0xFFF5F0E6, 0xFF111111]),
+          const SizedBox(height: 10),
+        ],
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton.tonalIcon(
             onPressed: () => _pick(context),
@@ -722,8 +866,22 @@ class _SchoolSection extends StatelessWidget {
         );
 
     Widget gap() => const SizedBox(height: 10);
+    final kind = kindById(state.template.kind);
+    final business = kind.id != 'ecole';
+    Future<void> addGallery() async {
+      try {
+        final f = await FilePicker.pickFiles(type: FileType.image);
+        for (final x in f.take(9 - s.gallery.length)) {
+          s.gallery.add(await prepareBackground(await x.readAsBytes()));
+        }
+        state.changed();
+      } catch (_) {
+        if (context.mounted) toast(context, 'Image illisible : choisissez des fichiers PNG ou JPEG.', error: true);
+      }
+    }
+
     return Section(
-      title: 'Établissement',
+      title: kind.org,
       subtitle: 'Ces informations apparaissent sur toutes les cartes',
       children: [
         imageSlot('Logo de l\'école', 'À gauche de l\'en-tête', s.logo, prepareLogo, (b) => s.logo = b),
@@ -774,6 +932,104 @@ class _SchoolSection extends StatelessWidget {
         TextSetting(label: 'Adresse', value: s.address, onChanged: (v) => set(() => s.address = v)),
         gap(),
         TextSetting(label: 'Téléphone', value: s.phone, onChanged: (v) => set(() => s.phone = v)),
+        gap(),
+        TextSetting(
+            label: 'Site web / réseaux',
+            value: s.website,
+            hint: 'www.monentreprise.bf',
+            onChanged: (v) => set(() => s.website = v)),
+        if (business || s.services.isNotEmpty || s.gallery.isNotEmpty) ...[
+          const Divider(height: 28),
+          Text('Cartes de visite', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: s.services,
+            minLines: 3,
+            maxLines: 8,
+            decoration: const InputDecoration(
+              labelText: 'Services / produits (un par ligne)',
+              hintText: 'Maintenance informatique\nRéseaux Wi-Fi\nVidéosurveillance',
+            ),
+            onChanged: (v) => set(() => s.services = v),
+          ),
+          const SizedBox(height: 12),
+          Text('Images de présentation (${s.gallery.length}/9) : produits, réalisations, locaux…',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (var i = 0; i < s.gallery.length; i++)
+              Stack(children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(s.gallery[i], width: 72, height: 54, fit: BoxFit.cover),
+                ),
+                Positioned(
+                  right: -6,
+                  top: -6,
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.cancel, size: 18),
+                    onPressed: () => set(() => s.gallery.removeAt(i)),
+                  ),
+                ),
+              ]),
+            if (s.gallery.length < 9)
+              OutlinedButton.icon(
+                  onPressed: addGallery, icon: const Icon(Icons.add_photo_alternate), label: const Text('Ajouter')),
+          ]),
+        ],
+      ],
+    );
+  }
+}
+
+const _kindIcons = <String, IconData>{
+  'ecole': Icons.school_outlined,
+  'membre': Icons.card_membership,
+  'pro': Icons.badge_outlined,
+  'visiteur': Icons.how_to_reg_outlined,
+  'visite': Icons.contact_mail_outlined,
+};
+
+/// Type de carte : scolaire, membre, professionnelle, visiteur, visite.
+class _KindSection extends StatelessWidget {
+  final AppState state;
+  const _KindSection({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = state.template.kind;
+    return Section(
+      title: 'Type de carte',
+      subtitle: kindById(current).description,
+      children: [
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final k in cardKinds)
+            Builder(builder: (context) {
+              final allowed = LicenseScope.moduleOf(context, k.id);
+              return ChoiceChip(
+                avatar: Icon(allowed ? _kindIcons[k.id] : Icons.lock_outline, size: 18),
+                label: Text(k.name),
+                selected: current == k.id,
+                onSelected: (_) async {
+                  if (current == k.id) return;
+                  if (!allowed) {
+                    toast(context, 'Module « ${k.name} » non activé dans votre licence. Contactez le vendeur.',
+                        error: true);
+                    return;
+                  }
+                  if (await confirm(
+                      context,
+                      'Passer en « ${k.name} » ?',
+                      'Le titre, les libellés, les champs affichés et le modèle conseillé vont changer. '
+                          'Vos fiches, photos et éléments ajoutés sont conservés.',
+                      ok: 'Changer')) {
+                    state.selectKind(k);
+                  }
+                },
+              );
+            }),
+        ]),
       ],
     );
   }

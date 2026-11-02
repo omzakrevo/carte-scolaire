@@ -129,6 +129,15 @@
         <div><label for="amount">Montant payé (FCFA)</label><input id="amount" inputmode="numeric" placeholder="Facultatif"></div>
       </div>
       <label for="notes">Notes</label><input id="notes" placeholder="Facultatif">
+      <label>Modules activés</label>
+      <div id="modules" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin:4px 0 8px">
+        <label style="font-weight:500"><input type="checkbox" value="ecole" checked style="width:auto"> Cartes scolaires</label>
+        <label style="font-weight:500"><input type="checkbox" value="membre" style="width:auto"> Cartes de membre</label>
+        <label style="font-weight:500"><input type="checkbox" value="pro" style="width:auto"> Cartes professionnelles</label>
+        <label style="font-weight:500"><input type="checkbox" value="visiteur" style="width:auto"> Cartes visiteur</label>
+        <label style="font-weight:500"><input type="checkbox" value="visite" style="width:auto"> Cartes de visite</label>
+        <label style="font-weight:500"><input type="checkbox" value="presence" checked style="width:auto"> Pointage des présences</label>
+      </div>
       <div class="row"><button id="issue">Générer le code de licence</button></div>
       <div id="issueOut"></div>
     </section>
@@ -285,10 +294,12 @@ $('issue').addEventListener('click', () => {
     if (!$('custom').value) return alertMsg('issueOut', 'err', 'Choisissez la date de fin.');
     expires = $('custom').value.replace(/-/g, '');
   } else expires = ymd(addMonths(t, { M1: 1, M3: 3, M6: 6, Y1: 12 }[plan]));
+  const modules = [...document.querySelectorAll('#modules input:checked')].map(i => i.value);
+  if (!modules.length) return alertMsg('issueOut', 'err', 'Cochez au moins un module.');
   const id = newId();
   const issued = ymd(t);
-  const code = sign(['CS1', id, device, plan, expires, issued].join('|'));
-  const lic = { id, device, plan, expires, issued, code, client: $('client').value.trim(), phone: $('phone').value.trim(), amount: $('amount').value.trim(), notes: $('notes').value.trim(), revoked: false };
+  const code = sign(['CS1', id, device, plan, expires, issued, modules.join(',')].join('|'));
+  const lic = { id, device, plan, expires, issued, code, modules, client: $('client').value.trim(), phone: $('phone').value.trim(), amount: $('amount').value.trim(), notes: $('notes').value.trim(), revoked: false };
   licenses.unshift(lic);
   store.set('licenses', licenses);
   renderCode('issueOut', lic, `Bonjour, voici votre code de licence Carte Scolaire (${PLAN_LABEL[plan]}${expires !== '0' ? ', valable jusqu\'au ' + fr(expires) : ''}). Ouvrez l'application, touchez « Version d'essai » puis collez ce code :\n\n${code}`);
@@ -343,7 +354,9 @@ function render() {
     const bRev = document.createElement('button'); bRev.className = (l.revoked ? 'ghost' : 'red') + ' small'; bRev.textContent = l.revoked ? 'Rétablir' : 'Révoquer';
     bRev.onclick = () => { l.revoked = !l.revoked; store.set('licenses', licenses); render(); };
     c6.append(bCopy, ' ', bRev);
-    tr.append(c1, cell(l.device, 'num'), cell(PLAN_LABEL[l.plan] || l.plan), cell(l.expires === '0' ? 'Jamais' : fr(l.expires), 'num'), c5, c6);
+    const MOD = { ecole: 'Scolaire', membre: 'Membre', pro: 'Pro', visiteur: 'Visiteur', visite: 'Visite', presence: 'Pointage' };
+    const mods = (l.modules || (l.plan === 'RESET' ? [] : ['ecole', 'presence'])).map(m => MOD[m] || m).join(', ');
+    tr.append(c1, cell(l.device, 'num'), cell((PLAN_LABEL[l.plan] || l.plan) + (mods ? ' · ' + mods : '')), cell(l.expires === '0' ? 'Jamais' : fr(l.expires), 'num'), c5, c6);
     tbody.appendChild(tr);
   }
   if (!licenses.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 6; td.className = 'muted'; td.textContent = 'Aucune licence pour l\'instant. Créez la première dans l\'onglet « Nouvelle licence ».'; tr.appendChild(td); tbody.appendChild(tr); }

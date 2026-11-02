@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
+import '../card_kinds.dart';
 import '../models.dart';
 import '../services/storage.dart';
 import 'attendance_models.dart';
@@ -21,7 +22,17 @@ class ScanResult {
   final bool duplicate;
   final String code;
 
-  ScanResult({this.student, this.entry = true, required this.time, this.late = false, this.duplicate = false, this.code = ''});
+  /// Temps de présence cumulé aujourd'hui (minutes), utile en entreprise.
+  final int workedMin;
+
+  ScanResult(
+      {this.student,
+      this.entry = true,
+      required this.time,
+      this.late = false,
+      this.duplicate = false,
+      this.code = '',
+      this.workedMin = 0});
 
   bool get unknown => student == null;
 }
@@ -129,9 +140,13 @@ class AttendanceController extends ChangeNotifier {
   Future<List<DayRecord>> daysBetween(DateTime from, DateTime to) async {
     final out = <DayRecord>[];
     final d = await _dir();
-    final files = await d.list().where((e) => e is File && RegExp(r'\d{4}-\d{2}-\d{2}\.json$').hasMatch(e.path)).toList();
+    final files =
+        await d.list().where((e) => e is File && RegExp(r'\d{4}-\d{2}-\d{2}\.json$').hasMatch(e.path)).toList();
     final a = dateKey(from), b = dateKey(to);
-    final keys = files.map((f) => f.uri.pathSegments.last.replaceAll('.json', '')).where((k) => k.compareTo(a) >= 0 && k.compareTo(b) <= 0).toSet();
+    final keys = files
+        .map((f) => f.uri.pathSegments.last.replaceAll('.json', ''))
+        .where((k) => k.compareTo(a) >= 0 && k.compareTo(b) <= 0)
+        .toSet();
     for (final k in _days.keys) {
       if (k.compareTo(a) >= 0 && k.compareTo(b) <= 0) keys.add(k);
     }
@@ -153,7 +168,10 @@ class AttendanceController extends ChangeNotifier {
     final pid = _projectId ?? '';
     if (pid.isEmpty || _dirty.isEmpty) return;
     // Copie avant toute attente : le projet peut changer pendant l'écriture.
-    final pending = {for (final k in _dirty) if (_days[k] != null) k: jsonEncode(_days[k]!.toJson())};
+    final pending = {
+      for (final k in _dirty)
+        if (_days[k] != null) k: jsonEncode(_days[k]!.toJson())
+    };
     _dirty.clear();
     try {
       final d = await _dir(pid);
@@ -200,7 +218,8 @@ class AttendanceController extends ChangeNotifier {
     if (entry && day.overrides[s.id] == DayOverride.absent) day.overrides.remove(s.id);
     _touch(day);
     final late = entry && previous.where((e) => e.entry).isEmpty && now.isAfter(settings.lateLimit(now));
-    return ScanResult(student: s, entry: entry, time: now, late: late, code: code);
+    final worked = computeDay(s, day, settings, now, now: now).workedMin;
+    return ScanResult(student: s, entry: entry, time: now, late: late, code: code, workedMin: worked);
   }
 
   void setOverride(Student s, DayOverride? o, {DateTime? date}) {
@@ -231,6 +250,12 @@ class AttendanceController extends ChangeNotifier {
     return [for (final s in app.students) computeDay(s, today, settings, now, now: now)];
   }
 
+  /// Pointage d'entreprise (heures de travail) ou d'école (absences des élèves).
+  bool get isCompany => settings.company ?? kindById(app.template.kind).company;
+
+  /// Envoi automatique des SMS activé pour le mode en cours.
+  bool get autoSmsOn => isCompany ? settings.companySms : settings.autoSms;
+
   bool get isSchoolDay => settings.schoolDays.contains(clock().weekday) && !today.closed;
 
   // ---------------- SMS d'absence ----------------
@@ -240,8 +265,12 @@ class AttendanceController extends ChangeNotifier {
       .where((d) => d.status == DayStatus.absent && !(today.sms[d.student.id]?.startsWith('Envoyé') ?? false))
       .toList();
 
+  String get smsTemplate => isCompany && settings.smsTemplate == AttendanceSettings.defaultTemplate
+      ? AttendanceSettings.companyTemplate
+      : settings.smsTemplate;
+
   String messageFor(Student s) =>
-      buildSms(settings.smsTemplate, s, app.school, clock(), withoutAccents: settings.smsWithoutAccents);
+      buildSms(smsTemplate, s, app.school, clock(), withoutAccents: settings.smsWithoutAccents);
 
   /// Appelée régulièrement : après l'heure limite, envoie une seule fois les SMS du jour.
   Future<void> checkAutoAbsences() async {
@@ -252,7 +281,7 @@ class AttendanceController extends ChangeNotifier {
     // Une école qui n'a pointé personne n'a sans doute pas ouvert : on n'envoie rien.
     if (day.events.isEmpty) return;
     final canSend = SmsService.supported || sender != SmsService.send;
-    if (!settings.autoSms || !canSend || !smsAllowed()) {
+    if (!autoSmsOn || !canSend || !smsAllowed()) {
       day.absencesProcessed = true;
       _touch(day);
       return;
@@ -288,7 +317,8 @@ class AttendanceController extends ChangeNotifier {
         if (smsGap > Duration.zero) await Future.delayed(smsGap);
       }
       if (only == null) day.absencesProcessed = true;
-      lastSendReport = '$ok SMS envoyé(s)${ko > 0 ? ', $ko échec(s)' : ''}${noPhone > 0 ? ', $noPhone élève(s) sans numéro' : ''}';
+      lastSendReport =
+          '$ok SMS envoyé(s)${ko > 0 ? ', $ko échec(s)' : ''}${noPhone > 0 ? ', $noPhone élève(s) sans numéro' : ''}';
     } finally {
       sending = false;
       _touch(day);

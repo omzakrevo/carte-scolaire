@@ -18,16 +18,17 @@ Uint8List buildAttendanceExcel({
   required DateTime to,
   String? classFilter,
   bool trial = false,
+  bool company = false,
+  String groupLabel = 'Classe',
   DateTime? now,
 }) {
   now ??= DateTime.now();
-  final list = students
-      .where((s) => classFilter == null || classFilter.isEmpty || s.classe.trim() == classFilter)
-      .toList()
-    ..sort((a, b) {
-      final c = a.classe.compareTo(b.classe);
-      return c != 0 ? c : a.fullName.compareTo(b.fullName);
-    });
+  final list =
+      students.where((s) => classFilter == null || classFilter.isEmpty || s.classe.trim() == classFilter).toList()
+        ..sort((a, b) {
+          final c = a.classe.compareTo(b.classe);
+          return c != 0 ? c : a.fullName.compareTo(b.fullName);
+        });
   final schoolDays = days.where((d) => !d.closed && (d.events.isNotEmpty || d.overrides.isNotEmpty)).toList();
   final byId = {for (final s in students) s.id: s};
 
@@ -57,7 +58,7 @@ Uint8List buildAttendanceExcel({
       ..value = TextCellValue('$t – ${school.name}')
       ..cellStyle = title;
     sh.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: r++)).value = TextCellValue(
-        'Période du ${frDate(from)} au ${frDate(to)}${classFilter?.isNotEmpty == true ? ' · Classe $classFilter' : ''}'
+        'Période du ${frDate(from)} au ${frDate(to)}${classFilter?.isNotEmpty == true ? ' · $groupLabel $classFilter' : ''}'
         ' · Édité le ${frDate(now!)} à ${hhmm(now)}');
     r++;
     for (var i = 0; i < cols.length; i++) {
@@ -77,14 +78,73 @@ Uint8List buildAttendanceExcel({
 
   // ---------- Synthèse ----------
   final syn = excel['Synthèse'];
-  var r = writeHeader(syn, 'Synthèse des présences', [
-    'Matricule', 'Nom', 'Prénom(s)', 'Classe', 'Jours de classe', 'Présences', 'Dont retards', 'Absences',
-    'Absences justifiées', 'Taux de présence', 'Contact parent'
-  ], [14, 18, 22, 10, 14, 12, 12, 12, 18, 16, 18]);
+  var r = company
+      ? writeHeader(syn, 'Synthèse des heures de travail', [
+          'Matricule',
+          'Nom',
+          'Prénom(s)',
+          groupLabel,
+          'Jours ouvrés',
+          'Jours présents',
+          'Absences',
+          'Absences justifiées',
+          'Retards',
+          'Total retards',
+          'Heures travaillées',
+          'Heures prévues',
+          'Écart (heures sup.)',
+          'Départs anticipés',
+          'Sorties non pointées'
+        ], [
+          14,
+          18,
+          22,
+          14,
+          12,
+          13,
+          11,
+          18,
+          10,
+          13,
+          17,
+          15,
+          18,
+          16,
+          19
+        ])
+      : writeHeader(syn, 'Synthèse des présences', [
+          'Matricule',
+          'Nom',
+          'Prénom(s)',
+          groupLabel,
+          'Jours de classe',
+          'Présences',
+          'Dont retards',
+          'Absences',
+          'Absences justifiées',
+          'Taux de présence',
+          'Contact parent'
+        ], [
+          14,
+          18,
+          22,
+          10,
+          14,
+          12,
+          12,
+          12,
+          18,
+          16,
+          18
+        ]);
   for (final s in list) {
-    var p = 0, late = 0, abs = 0, exc = 0;
+    var p = 0, late = 0, abs = 0, exc = 0, worked = 0, lateMin = 0, early = 0, missing = 0;
     for (final d in schoolDays) {
       final sd = computeDay(s, d, settings, parseDateKey(d.date), now: now);
+      worked += sd.workedMin;
+      lateMin += sd.lateMin;
+      if (sd.earlyMin > 0) early++;
+      if (sd.missingExit) missing++;
       switch (sd.status) {
         case DayStatus.present:
           p++;
@@ -106,20 +166,55 @@ Uint8List buildAttendanceExcel({
     put(syn, r, 2, TextCellValue(s.prenom));
     put(syn, r, 3, TextCellValue(s.classe));
     put(syn, r, 4, IntCellValue(counted));
-    put(syn, r, 5, IntCellValue(p));
-    put(syn, r, 6, IntCellValue(late), late > 0 ? orange : null);
-    put(syn, r, 7, IntCellValue(abs), abs > 0 ? red : null);
-    put(syn, r, 8, IntCellValue(exc));
-    put(syn, r, 9, TextCellValue('${(rate * 100).round()} %'), rate >= 0.9 ? green : (rate < 0.75 ? red : orange));
-    put(syn, r, 10, TextCellValue(s.contact));
+    if (company) {
+      final expected = p * settings.expectedMinutes;
+      final diff = worked - expected;
+      put(syn, r, 5, IntCellValue(p));
+      put(syn, r, 6, IntCellValue(abs), abs > 0 ? red : null);
+      put(syn, r, 7, IntCellValue(exc));
+      put(syn, r, 8, IntCellValue(late), late > 0 ? orange : null);
+      put(syn, r, 9, TextCellValue(hoursLabel(lateMin)), lateMin > 0 ? orange : null);
+      put(syn, r, 10, TextCellValue(hoursLabel(worked)), green);
+      put(syn, r, 11, TextCellValue(hoursLabel(expected)));
+      put(syn, r, 12, TextCellValue(diff >= 0 ? '+${hoursLabel(diff)}' : hoursLabel(diff)), diff < 0 ? red : green);
+      put(syn, r, 13, IntCellValue(early), early > 0 ? orange : null);
+      put(syn, r, 14, IntCellValue(missing), missing > 0 ? red : null);
+    } else {
+      put(syn, r, 5, IntCellValue(p));
+      put(syn, r, 6, IntCellValue(late), late > 0 ? orange : null);
+      put(syn, r, 7, IntCellValue(abs), abs > 0 ? red : null);
+      put(syn, r, 8, IntCellValue(exc));
+      put(syn, r, 9, TextCellValue('${(rate * 100).round()} %'), rate >= 0.9 ? green : (rate < 0.75 ? red : orange));
+      put(syn, r, 10, TextCellValue(s.contact));
+    }
     r++;
   }
 
   // ---------- Par jour ----------
   final per = excel['Par jour'];
-  r = writeHeader(per, 'Présences par jour', [
-    'Date', 'Jour', 'Matricule', 'Nom', 'Prénom(s)', 'Classe', 'Statut', 'Arrivée', 'Sortie', 'SMS au parent'
-  ], [12, 11, 14, 18, 22, 10, 18, 9, 9, 26]);
+  r = writeHeader(per, company ? 'Heures par jour' : 'Présences par jour', [
+    'Date',
+    'Jour',
+    'Matricule',
+    'Nom',
+    'Prénom(s)',
+    groupLabel,
+    'Statut',
+    'Arrivée',
+    'Sortie',
+    if (company) ...['Heures travaillées', 'Retard', 'Départ anticipé', 'Remarque'] else 'SMS au parent',
+  ], [
+    12,
+    11,
+    14,
+    18,
+    22,
+    12,
+    18,
+    9,
+    9,
+    if (company) ...[17.0, 10.0, 15.0, 22.0] else 26.0
+  ]);
   for (final d in schoolDays) {
     final date = parseDateKey(d.date);
     for (final s in list) {
@@ -139,15 +234,26 @@ Uint8List buildAttendanceExcel({
       put(per, r, 6, TextCellValue(dayStatusLabel[sd.status]!), st);
       put(per, r, 7, TextCellValue(sd.arrival == null ? '' : hhmm(sd.arrival!)));
       put(per, r, 8, TextCellValue(sd.departure == null ? '' : hhmm(sd.departure!)));
-      put(per, r, 9, TextCellValue(sd.sms ?? ''));
+      if (company) {
+        put(per, r, 9, TextCellValue(sd.workedMin > 0 ? hoursLabel(sd.workedMin) : ''));
+        put(per, r, 10, TextCellValue(sd.lateMin > 0 ? '${sd.lateMin} min' : ''), sd.lateMin > 0 ? orange : null);
+        put(per, r, 11, TextCellValue(sd.earlyMin > 0 ? '${sd.earlyMin} min' : ''), sd.earlyMin > 0 ? orange : null);
+        put(per, r, 12, TextCellValue(sd.missingExit ? 'Sortie non pointée' : (sd.sms ?? '')),
+            sd.missingExit ? red : null);
+      } else {
+        put(per, r, 9, TextCellValue(sd.sms ?? ''));
+      }
       r++;
     }
   }
 
   // ---------- Pointages ----------
   final scans = excel['Pointages'];
-  r = writeHeader(scans, 'Tous les passages de carte',
-      ['Date', 'Heure', 'Passage', 'Matricule', 'Nom', 'Prénom(s)', 'Classe', 'Lecture'], [12, 9, 10, 14, 18, 22, 10, 12]);
+  r = writeHeader(
+      scans,
+      'Tous les passages de carte',
+      ['Date', 'Heure', 'Passage', 'Matricule', 'Nom', 'Prénom(s)', groupLabel, 'Lecture'],
+      [12, 9, 10, 14, 18, 22, 10, 12]);
   final ids = list.map((s) => s.id).toSet();
   for (final d in days) {
     final ev = d.events.where((e) => ids.contains(e.studentId)).toList()..sort((a, b) => a.time.compareTo(b.time));
@@ -160,7 +266,8 @@ Uint8List buildAttendanceExcel({
       put(scans, r, 4, TextCellValue(s.nom.toUpperCase()));
       put(scans, r, 5, TextCellValue(s.prenom));
       put(scans, r, 6, TextCellValue(s.classe));
-      put(scans, r, 7, TextCellValue(switch (e.source) { 'douchette' => 'Douchette', 'manuel' => 'Manuel', _ => 'Caméra' }));
+      put(scans, r, 7,
+          TextCellValue(switch (e.source) { 'douchette' => 'Douchette', 'manuel' => 'Manuel', _ => 'Caméra' }));
       r++;
     }
   }

@@ -23,4 +23,26 @@ void main() {
       if (dir != null) File('$dir/${a4 ? 'planche' : 'individuel'}.pdf').writeAsBytesSync(bytes);
     }
   });
+
+  testWidgets('recto-verso : une page verso après chaque planche ou carte', (tester) async {
+    final students = List.generate(12, (i) => Student(nom: 'Nom$i', prenom: 'Test', matricule: 'M$i'));
+    final t = CardTemplate()..versoDesign = 'verso_reglement';
+    for (final a4 in [true, false]) {
+      final bytes = await tester.runAsync(() => buildCardsPdf(
+            students: students,
+            template: t,
+            school: SchoolInfo(),
+            layout: PrintLayout(a4Sheet: a4),
+          ));
+      final pages = RegExp(r'/Type\s*/Page[^s]').allMatches(String.fromCharCodes(bytes!)).length;
+      expect(pages, a4 ? 4 : 24);
+    }
+    final single = await tester.runAsync(() => buildCardsPdf(
+          students: students,
+          template: t,
+          school: SchoolInfo(),
+          layout: PrintLayout(printVerso: false),
+        ));
+    expect(RegExp(r'/Type\s*/Page[^s]').allMatches(String.fromCharCodes(single!)).length, 2);
+  });
 }

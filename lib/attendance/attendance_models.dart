@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import '../models.dart';
 
 /// Un passage de carte à l'entrée ou à la sortie.
@@ -40,8 +41,12 @@ class DayRecord {
   /// Jour sans école (férié, congé) : pas d'absence ni de SMS.
   bool closed;
 
-  DayRecord(this.date, {List<ScanEvent>? events, Map<String, DayOverride>? overrides, Map<String, String>? sms,
-      this.absencesProcessed = false, this.closed = false})
+  DayRecord(this.date,
+      {List<ScanEvent>? events,
+      Map<String, DayOverride>? overrides,
+      Map<String, String>? sms,
+      this.absencesProcessed = false,
+      this.closed = false})
       : events = events ?? [],
         overrides = overrides ?? {},
         sms = sms ?? {};
@@ -62,8 +67,8 @@ class DayRecord {
   factory DayRecord.fromJson(Map<String, dynamic> j) => DayRecord(
         j['date'] as String,
         events: (j['events'] as List? ?? []).map((e) => ScanEvent.fromJson(Map<String, dynamic>.from(e))).toList(),
-        overrides: (j['overrides'] as Map? ?? {}).map((k, v) =>
-            MapEntry(k.toString(), DayOverride.values.firstWhere((o) => o.name == v, orElse: () => DayOverride.present))),
+        overrides: (j['overrides'] as Map? ?? {}).map((k, v) => MapEntry(
+            k.toString(), DayOverride.values.firstWhere((o) => o.name == v, orElse: () => DayOverride.present))),
         sms: (j['sms'] as Map? ?? {}).map((k, v) => MapEntry(k.toString(), v.toString())),
         absencesProcessed: j['processed'] ?? false,
         closed: j['closed'] ?? false,
@@ -97,6 +102,20 @@ class AttendanceSettings {
 
   ScanMode mode;
 
+  /// Pointage d'entreprise : heures de travail au lieu des absences d'élèves.
+  /// `null` = selon le type de carte du projet (carte professionnelle → entreprise).
+  bool? company;
+
+  /// Entreprise : heure de fin de journée et pause (déduite si l'employé ne pointe pas à midi).
+  String endTime;
+  int breakMin;
+
+  /// Entreprise : SMS à l'employé non pointé (désactivé par défaut).
+  bool companySms;
+
+  static const companyTemplate =
+      'Bonjour {prenom}, {ecole} n\'a pas enregistré votre arrivée ce {date}. Merci de prévenir votre responsable.';
+
   static const defaultTemplate =
       'Bonjour, {ecole} vous informe que {prenom} {nom} ({classe}) est absent(e) ce {date}. Merci de nous contacter.';
 
@@ -111,6 +130,10 @@ class AttendanceSettings {
     Set<int>? schoolDays,
     this.doubleScanSeconds = 60,
     this.mode = ScanMode.auto,
+    this.company,
+    this.endTime = '17:00',
+    this.breakMin = 60,
+    this.companySms = false,
   }) : schoolDays = schoolDays ?? {1, 2, 3, 4, 5};
 
   Map<String, dynamic> toJson() => {
@@ -124,6 +147,10 @@ class AttendanceSettings {
         'days': schoolDays.toList()..sort(),
         'double': doubleScanSeconds,
         'mode': mode.name,
+        'company': company,
+        'end': endTime,
+        'break': breakMin,
+        'companySms': companySms,
       };
 
   factory AttendanceSettings.fromJson(Map<String, dynamic> j) => AttendanceSettings(
@@ -137,6 +164,10 @@ class AttendanceSettings {
         schoolDays: (j['days'] as List?)?.map((e) => e as int).toSet(),
         doubleScanSeconds: j['double'] ?? 60,
         mode: ScanMode.values.firstWhere((m) => m.name == j['mode'], orElse: () => ScanMode.auto),
+        company: j['company'] as bool?,
+        endTime: j['end'] ?? '17:00',
+        breakMin: j['break'] ?? 60,
+        companySms: j['companySms'] ?? false,
       );
 
   static (int, int) parseTime(String s) {
@@ -152,6 +183,14 @@ class AttendanceSettings {
 
   DateTime lateLimit(DateTime day) => at(day, startTime).add(Duration(minutes: lateToleranceMin));
   DateTime absenceLimit(DateTime day) => at(day, absenceTime);
+  DateTime endOf(DateTime day) => at(day, endTime);
+
+  /// Durée de travail prévue par jour, en minutes.
+  int get expectedMinutes {
+    final (h1, m1) = parseTime(startTime);
+    final (h2, m2) = parseTime(endTime);
+    return math.max(0, (h2 * 60 + m2) - (h1 * 60 + m1) - breakMin);
+  }
 }
 
 /// Statut d'un élève pour une journée.
@@ -177,7 +216,30 @@ class StudentDay {
   final int scans;
   final String? sms;
 
-  StudentDay(this.student, this.status, {this.arrival, this.departure, this.isOut = false, this.scans = 0, this.sms});
+  /// Entreprise : minutes travaillées, minutes de retard, départ avant l'heure, sortie non pointée.
+  final int workedMin;
+  final int lateMin;
+  final int earlyMin;
+  final bool missingExit;
+
+  StudentDay(this.student, this.status,
+      {this.arrival,
+      this.departure,
+      this.isOut = false,
+      this.scans = 0,
+      this.sms,
+      this.workedMin = 0,
+      this.lateMin = 0,
+      this.earlyMin = 0,
+      this.missingExit = false});
+}
+
+/// « 7 h 45 » à partir d'un nombre de minutes.
+String hoursLabel(int minutes) {
+  final neg = minutes < 0;
+  final m = minutes.abs();
+  final r = '${m ~/ 60} h ${(m % 60).toString().padLeft(2, '0')}';
+  return neg ? '-$r' : r;
 }
 
 String dateKey(DateTime d) =>
@@ -190,8 +252,7 @@ DateTime parseDateKey(String k) {
 
 String hhmm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-String frDate(DateTime d) =>
-    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+String frDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
 const frWeekdays = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
@@ -219,8 +280,46 @@ StudentDay computeDay(Student s, DayRecord? day, AttendanceSettings st, DateTime
     final pastLimit = now.isAfter(st.absenceLimit(date)) || now.isAfter(dayEnd);
     status = pastLimit ? DayStatus.absent : DayStatus.notYet;
   }
+  // Temps de présence : chaque entrée jusqu'à la sortie suivante.
+  var worked = 0;
+  var intervals = 0;
+  var missingExit = false;
+  final today = DateTime(now.year, now.month, now.day) == DateTime(date.year, date.month, date.day);
+  DateTime? open;
+  for (final e in events) {
+    if (e.entry) {
+      open ??= e.time;
+    } else if (open != null) {
+      worked += e.time.difference(open).inMinutes;
+      intervals++;
+      open = null;
+    }
+  }
+  if (open != null) {
+    // Toujours à l'intérieur : jusqu'à maintenant aujourd'hui, sinon jusqu'à l'heure de fin (sortie oubliée).
+    final until = today ? now : st.endOf(date);
+    if (until.isAfter(open)) worked += until.difference(open).inMinutes;
+    intervals++;
+    if (!today) missingExit = true;
+  }
+  // Pas de pointage à midi : on retire la pause d'une journée complète.
+  if (intervals == 1 && worked > 6 * 60) worked = math.max(0, worked - st.breakMin);
+  final lateMin = status == DayStatus.late && arrival != null
+      ? math.max(0, arrival.difference(st.at(date, st.startTime)).inMinutes)
+      : 0;
+  final earlyMin = isOut && departure != null && departure.isBefore(st.endOf(date))
+      ? st.endOf(date).difference(departure).inMinutes
+      : 0;
   return StudentDay(s, status,
-      arrival: arrival, departure: departure, isOut: isOut, scans: events.length, sms: day?.sms[s.id]);
+      arrival: arrival,
+      departure: departure,
+      isOut: isOut,
+      scans: events.length,
+      sms: day?.sms[s.id],
+      workedMin: worked,
+      lateMin: lateMin,
+      earlyMin: earlyMin,
+      missingExit: missingExit);
 }
 
 /// Remplace les variables du modèle de SMS.
@@ -266,7 +365,8 @@ String removeAccents(String s) {
 
 /// Nombre de SMS facturés pour un texte (70 caractères par SMS avec accents, 160 sans).
 int smsSegments(String text) {
-  const gsm = '@£\$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
+  const gsm =
+      '@£\$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
   final unicode = text.runes.any((r) => !gsm.contains(String.fromCharCode(r)));
   final n = text.length;
   if (unicode) return n <= 70 ? 1 : (n / 67).ceil();

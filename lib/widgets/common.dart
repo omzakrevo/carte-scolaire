@@ -121,3 +121,138 @@ Future<bool> confirm(BuildContext context, String title, String message, {String
   );
   return r ?? false;
 }
+
+/// Nuancier : couleurs proposées + bouton « autre couleur » (code hexadécimal ou curseurs).
+const colorSwatches = <int>[
+  0xFFFFFFFF,
+  0xFF111111,
+  0xFF37474F,
+  0xFF90A4AE,
+  0xFF009E49,
+  0xFF0B6B3A,
+  0xFF00897B,
+  0xFF1E4FA1,
+  0xFF0D1B3E,
+  0xFF1A237E,
+  0xFF6A1B9A,
+  0xFF8E1B2E,
+  0xFFC62828,
+  0xFFEF2B2D,
+  0xFFE65100,
+  0xFFFFA000,
+  0xFFFCD116,
+  0xFFC9A646,
+  0xFF795548,
+  0xFF90CAF9,
+];
+
+class ColorRow extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+  final List<int> extra;
+  final bool allowNone;
+  final bool isNone;
+  final VoidCallback? onNone;
+
+  const ColorRow({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.extra = const [],
+    this.allowNone = false,
+    this.isNone = false,
+    this.onNone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = <int>{...extra, ...colorSwatches, value}.toList();
+    Widget dot(Widget child, bool sel, VoidCallback tap, {Color? color}) => InkWell(
+          onTap: tap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: sel ? Theme.of(context).colorScheme.onSurface : Colors.black26,
+                width: sel ? 3 : 1,
+              ),
+            ),
+            child: child,
+          ),
+        );
+    return Wrap(spacing: 6, runSpacing: 6, children: [
+      if (allowNone) dot(const Icon(Icons.block, size: 16, color: Colors.grey), isNone, () => onNone?.call()),
+      for (final c in colors) dot(const SizedBox(), !isNone && c == value, () => onChanged(c), color: Color(c)),
+      Tooltip(
+        message: 'Autre couleur',
+        child: dot(const Icon(Icons.colorize, size: 16), false, () async {
+          final c = await pickColor(context, value);
+          if (c != null) onChanged(c);
+        }),
+      ),
+    ]);
+  }
+}
+
+String colorHex(int c) => '#${(c & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+
+int? parseColorHex(String s) {
+  final h = s.trim().replaceAll('#', '');
+  if (!RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(h)) return null;
+  return 0xFF000000 | int.parse(h, radix: 16);
+}
+
+/// Choix libre d'une couleur : teinte, saturation, luminosité ou code #RRGGBB.
+Future<int?> pickColor(BuildContext context, int initial) {
+  var hsl = HSLColor.fromColor(Color(initial));
+  final hex = TextEditingController(text: colorHex(initial));
+  return showDialog<int>(
+    context: context,
+    builder: (c) => StatefulBuilder(builder: (c, set) {
+      final color = hsl.toColor();
+      void update(HSLColor v) => set(() {
+            hsl = v;
+            hex.text = colorHex(v.toColor().toARGB32());
+          });
+      return AlertDialog(
+        title: const Text('Choisir une couleur'),
+        content: SizedBox(
+          width: 340,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('Teinte'),
+            Slider(value: hsl.hue, max: 360, onChanged: (v) => update(hsl.withHue(v))),
+            const Text('Saturation'),
+            Slider(value: hsl.saturation, onChanged: (v) => update(hsl.withSaturation(v))),
+            const Text('Luminosité'),
+            Slider(value: hsl.lightness, onChanged: (v) => update(hsl.withLightness(v))),
+            TextField(
+              controller: hex,
+              decoration: const InputDecoration(labelText: 'Code couleur', hintText: '#E31E24'),
+              onChanged: (v) {
+                final p = parseColorHex(v);
+                if (p != null) set(() => hsl = HSLColor.fromColor(Color(p)));
+              },
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(c, hsl.toColor().toARGB32()), child: const Text('Choisir')),
+        ],
+      );
+    }),
+  );
+}

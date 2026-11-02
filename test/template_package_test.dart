@@ -6,7 +6,8 @@ import 'package:carte_scolaire/services/template_package.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
-Uint8List png(int w, int h) => Uint8List.fromList(img.encodePng(img.Image(width: w, height: h)..clear(img.ColorRgb8(30, 60, 160))));
+Uint8List png(int w, int h) =>
+    Uint8List.fromList(img.encodePng(img.Image(width: w, height: h)..clear(img.ColorRgb8(30, 60, 160))));
 
 void main() {
   test('export ZIP puis import : modèle, calques, textes et images conservés', () async {

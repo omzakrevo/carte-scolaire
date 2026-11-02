@@ -15,6 +15,11 @@ class Student {
   String lieuNaissance;
   String sexe;
   String contact;
+
+  /// Fonction (carte professionnelle, carte de visite).
+  String service;
+  String email;
+  String adresse;
   Uint8List? photo;
 
   /// Photo d'origine (avant recadrage), pour pouvoir recadrer à nouveau.
@@ -32,6 +37,9 @@ class Student {
     this.lieuNaissance = '',
     this.sexe = '',
     this.contact = '',
+    this.service = '',
+    this.email = '',
+    this.adresse = '',
     this.photo,
     this.original,
     this.photoVersion = 0,
@@ -64,6 +72,9 @@ class Student {
         'lieuNaissance': lieuNaissance,
         'sexe': sexe,
         'contact': contact,
+        'service': service,
+        'email': email,
+        'adresse': adresse,
         'photoVersion': photoVersion,
         'validated': validated,
       };
@@ -78,6 +89,9 @@ class Student {
         lieuNaissance: j['lieuNaissance'] ?? '',
         sexe: j['sexe'] ?? '',
         contact: j['contact'] ?? '',
+        service: j['service'] ?? '',
+        email: j['email'] ?? '',
+        adresse: j['adresse'] ?? '',
         photoVersion: j['photoVersion'] ?? 0,
         validated: j['validated'] ?? false,
       );
@@ -92,6 +106,9 @@ class Student {
         lieuNaissance: 'Ouagadougou',
         sexe: 'F',
         contact: '70 00 00 00',
+        service: 'Comptable',
+        email: 'awa.ouedraogo@exemple.bf',
+        adresse: 'Ouagadougou, secteur 15',
       );
 }
 
@@ -117,6 +134,11 @@ class SchoolInfo {
   /// Cachet de l'établissement, posé sur le coin de la photo.
   Uint8List? stamp;
 
+  /// Cartes de visite : services (un par ligne), site web, images de présentation.
+  String services;
+  String website;
+  List<Uint8List> gallery;
+
   SchoolInfo({
     this.name = 'Complexe Scolaire Les Étoiles',
     this.shortName = 'C.S. LES ÉTOILES',
@@ -133,7 +155,17 @@ class SchoolInfo {
     this.logo,
     this.emblem,
     this.stamp,
-  }) : schoolYear = schoolYear ?? defaultYear();
+    this.services = '',
+    this.website = '',
+    List<Uint8List>? gallery,
+  })  : schoolYear = schoolYear ?? defaultYear(),
+        gallery = gallery ?? [];
+
+  List<String> get serviceList => services
+      .split('\n')
+      .map((e) => e.replaceFirst(RegExp(r'^[-•*✓\s]+'), '').trim())
+      .where((e) => e.isNotEmpty)
+      .toList();
 
   static String defaultYear() {
     final now = DateTime.now();
@@ -160,6 +192,9 @@ class SchoolInfo {
         'logo': _b64(logo),
         'emblem': _b64(emblem),
         'stamp': _b64(stamp),
+        'services': services,
+        'website': website,
+        'gallery': gallery.map(base64Encode).toList(),
       };
 
   factory SchoolInfo.fromJson(Map<String, dynamic> j) => SchoolInfo(
@@ -178,6 +213,9 @@ class SchoolInfo {
         logo: _unb64(j['logo']),
         emblem: _unb64(j['emblem']),
         stamp: _unb64(j['stamp']),
+        services: j['services'] ?? '',
+        website: j['website'] ?? '',
+        gallery: (j['gallery'] as List? ?? []).map((e) => base64Decode(e as String)).toList(),
       );
 }
 
@@ -185,12 +223,18 @@ class SchoolInfo {
 const cardFields = <String>[
   'matricule',
   'nomPrenom',
+  'service',
   'dateNaissance',
   'lieuNaissance',
   'sexe',
   'classe',
   'contact',
+  'email',
+  'adresse',
 ];
+
+/// Champs ajoutés avec les cartes professionnelles et de visite : masqués sur les anciens modèles.
+const newFields = {'service', 'email', 'adresse'};
 
 const defaultLabels = <String, String>{
   'matricule': 'Matricule',
@@ -200,6 +244,9 @@ const defaultLabels = <String, String>{
   'sexe': 'Sexe',
   'classe': 'Classe',
   'contact': 'Personne à prévenir',
+  'service': 'Fonction',
+  'email': 'E-mail',
+  'adresse': 'Adresse',
 };
 
 /// Réglages du modèle de carte : design, dimensions, couleurs, textes, champs.
@@ -234,6 +281,29 @@ class CardTemplate {
   /// Position, taille et visibilité de chaque calque (voir [cardLayers]).
   Map<String, LayerAdjust> layers;
 
+  /// Type de carte : ecole, membre, pro, visiteur, visite (voir card_kinds.dart).
+  String kind;
+
+  /// Textes, formes et images ajoutés par l'utilisateur, dessinés par-dessus le modèle.
+  List<CardElement> elements;
+
+  /// Couleur de fond du modèle « Fond personnalisé » quand il n'a pas d'image.
+  int bgColor;
+
+  /// Image de fond posée sur les autres modèles (filigrane), avec son opacité.
+  bool bgOverlay;
+  double bgOpacity;
+
+  /// Modèle du verso (vide = carte imprimée d'un seul côté).
+  String versoDesign;
+
+  /// Texte du verso « Texte et mentions » (variables {ecole}, {telephoneEcole}, {adresseEcole}…).
+  String versoText;
+
+  static const defaultVersoText =
+      'Cette carte est strictement personnelle. Elle doit être présentée à toute demande.\n'
+      'En cas de perte, merci de la rapporter à {ecole} ou d\'appeler le {telephoneEcole}.';
+
   CardTemplate({
     this.designId = 'identite',
     this.widthMm = 85.6,
@@ -254,20 +324,40 @@ class CardTemplate {
     this.headerSpace = 0.3,
     this.footerSpace = 0.12,
     Map<String, LayerAdjust>? layers,
+    this.kind = 'ecole',
+    List<CardElement>? elements,
+    this.bgColor = 0xFFFFFFFF,
+    this.bgOverlay = false,
+    this.bgOpacity = 0.25,
+    this.versoDesign = '',
+    this.versoText = defaultVersoText,
   })  : layers = layers ?? {},
+        elements = elements ?? [],
         labels = {...defaultLabels, ...?labels},
-        hidden = hidden ?? <String>{};
+        hidden = hidden ?? {...newFields};
 
   bool get landscape => widthMm >= heightMm;
+  bool get hasVerso => versoDesign.isNotEmpty;
 
   bool shows(String field) => !hidden.contains(field);
   LayerAdjust layer(String id) => layers.putIfAbsent(id, () => LayerAdjust());
   String label(String field) => labels[field] ?? defaultLabels[field] ?? field;
 
-  /// Copie indépendante (l'image de fond, immuable, est partagée).
+  /// Copie indépendante (les images, immuables, sont partagées).
   CardTemplate copy() {
-    final j = toJson()..remove('background');
-    return CardTemplate.fromJson(j)..background = background;
+    final j = toJson()
+      ..remove('background')
+      ..remove('elements');
+    return CardTemplate.fromJson(j)
+      ..background = background
+      ..elements = elements.map((e) => e.copy()).toList();
+  }
+
+  CardElement? element(String id) {
+    for (final e in elements) {
+      if (e.id == id) return e;
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() => {
@@ -293,6 +383,13 @@ class CardTemplate {
           for (final e in layers.entries)
             if (!e.value.isDefault) e.key: e.value.toJson(),
         },
+        'kind': kind,
+        'elements': elements.map((e) => e.toJson()).toList(),
+        'bgColor': bgColor,
+        'bgOverlay': bgOverlay,
+        'bgOpacity': bgOpacity,
+        'versoDesign': versoDesign,
+        'versoText': versoText,
       };
 
   factory CardTemplate.fromJson(Map<String, dynamic> j) => CardTemplate(
@@ -305,7 +402,11 @@ class CardTemplate {
         title: j['title'] ?? 'CARTE D\'IDENTITÉ SCOLAIRE',
         yearLabel: j['yearLabel'] ?? 'ANNÉE SCOLAIRE',
         labels: (j['labels'] as Map?)?.map((k, v) => MapEntry(k.toString(), v.toString())),
-        hidden: (j['hidden'] as List?)?.map((e) => e.toString()).toSet(),
+        // Les modèles d'avant les cartes pro/visite n'ont pas les nouveaux champs : on les masque.
+        hidden: {
+          ...?(j['hidden'] as List?)?.map((e) => e.toString()),
+          if (j['kind'] == null) ...newFields,
+        },
         showQr: j['showQr'] ?? false,
         showSignature: j['showSignature'] ?? true,
         showStamp: j['showStamp'] ?? true,
@@ -317,6 +418,142 @@ class CardTemplate {
         layers: (j['layers'] as Map?)?.map(
           (k, v) => MapEntry(k.toString(), LayerAdjust.fromJson(Map<String, dynamic>.from(v as Map))),
         ),
+        kind: j['kind'] ?? 'ecole',
+        elements: (j['elements'] as List? ?? [])
+            .map((e) => CardElement.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        bgColor: j['bgColor'] ?? 0xFFFFFFFF,
+        bgOverlay: j['bgOverlay'] ?? false,
+        bgOpacity: (j['bgOpacity'] ?? 0.25).toDouble(),
+        versoDesign: j['versoDesign'] ?? '',
+        versoText: j['versoText'] ?? defaultVersoText,
+      );
+}
+
+/// Élément libre ajouté sur la carte : texte, rectangle, cercle, ligne ou image.
+/// Position et taille en millimètres depuis le coin haut gauche de la carte.
+class CardElement {
+  String id;
+  String type; // text, rect, ellipse, line, image
+  double x;
+  double y;
+  double w;
+  double h;
+  double rotation; // degrés
+  double opacity;
+
+  /// Couleur du texte, du trait ou du remplissage de la forme.
+  int color;
+
+  /// Fond derrière un texte (null = transparent).
+  int? fill;
+  int borderColor;
+  double borderWidth; // mm, 0 = sans bordure
+  double radius; // mm (coins arrondis)
+
+  String text;
+  double fontSize; // mm
+  bool bold;
+  bool italic;
+  String align; // left, center, right
+  String font; // '', serif, mono
+
+  /// Élément posé sur le verso de la carte.
+  bool back;
+
+  Uint8List? image;
+
+  CardElement({
+    String? id,
+    required this.type,
+    this.x = 5,
+    this.y = 5,
+    this.w = 30,
+    this.h = 8,
+    this.rotation = 0,
+    this.opacity = 1,
+    this.color = 0xFF1B2A6B,
+    this.fill,
+    this.borderColor = 0xFF1B2A6B,
+    this.borderWidth = 0,
+    this.radius = 0,
+    this.text = '',
+    this.fontSize = 3,
+    this.bold = false,
+    this.italic = false,
+    this.align = 'left',
+    this.font = '',
+    this.back = false,
+    this.image,
+  }) : id = id ?? 'e${Student.newId()}';
+
+  static const typeLabels = {
+    'text': 'Texte',
+    'rect': 'Rectangle',
+    'ellipse': 'Cercle / ovale',
+    'line': 'Ligne',
+    'image': 'Image',
+  };
+
+  String get label => switch (type) {
+        'text' => text.trim().isEmpty ? 'Texte' : (text.length > 18 ? '${text.substring(0, 18)}…' : text),
+        _ => typeLabels[type] ?? type,
+      };
+
+  CardElement copy({bool newId = false}) {
+    final j = toJson()..remove('image');
+    if (newId) j.remove('id');
+    return CardElement.fromJson(j)..image = image;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        'x': x,
+        'y': y,
+        'w': w,
+        'h': h,
+        'rotation': rotation,
+        'opacity': opacity,
+        'color': color,
+        'fill': fill,
+        'borderColor': borderColor,
+        'borderWidth': borderWidth,
+        'radius': radius,
+        'text': text,
+        'fontSize': fontSize,
+        'bold': bold,
+        'italic': italic,
+        'align': align,
+        'font': font,
+        'back': back,
+        'image': image == null ? null : base64Encode(image!),
+      };
+
+  static double _d(dynamic v, double def) => v is num ? v.toDouble() : def;
+
+  factory CardElement.fromJson(Map<String, dynamic> j) => CardElement(
+        id: j['id'] as String?,
+        type: j['type'] ?? 'text',
+        x: _d(j['x'], 5),
+        y: _d(j['y'], 5),
+        w: _d(j['w'], 30),
+        h: _d(j['h'], 8),
+        rotation: _d(j['rotation'], 0),
+        opacity: _d(j['opacity'], 1),
+        color: j['color'] ?? 0xFF1B2A6B,
+        fill: j['fill'],
+        borderColor: j['borderColor'] ?? 0xFF1B2A6B,
+        borderWidth: _d(j['borderWidth'], 0),
+        radius: _d(j['radius'], 0),
+        text: j['text'] ?? '',
+        fontSize: _d(j['fontSize'], 3),
+        bold: j['bold'] ?? false,
+        italic: j['italic'] ?? false,
+        align: j['align'] ?? 'left',
+        font: j['font'] ?? '',
+        back: j['back'] ?? false,
+        image: j['image'] is String ? base64Decode(j['image']) : null,
       );
 }
 
@@ -349,8 +586,8 @@ const cardLayers = <String, String>{
   'emblem': 'Emblème / armoiries',
   'header': 'Texte du haut',
   'title': 'Titre',
-  'name': 'Nom en grand (portrait)',
-  'info': 'Infos de l\'élève',
+  'name': 'Nom en grand',
+  'info': 'Infos de la personne',
   'footer': 'Texte du bas',
   'qr': 'QR code',
 };
@@ -406,6 +643,9 @@ class PrintLayout {
   bool onlyValidated;
   String? classFilter;
 
+  /// Ajoute le verso après chaque page (impression recto-verso).
+  bool printVerso;
+
   PrintLayout({
     this.a4Sheet = true,
     this.marginMm = 6,
@@ -413,6 +653,7 @@ class PrintLayout {
     this.cutMarks = true,
     this.onlyValidated = false,
     this.classFilter,
+    this.printVerso = true,
   });
 
   /// Nombre de colonnes et lignes d'une planche A4 portrait.

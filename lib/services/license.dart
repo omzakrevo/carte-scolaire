@@ -27,7 +27,11 @@ const licensePlans = <String, String>{
   'RESET': 'Réinitialisation du mot de passe',
 };
 
-/// Contenu d'un code signé : CS1|id|appareil|formule|expiration(AAAAMMJJ ou 0)|émission(AAAAMMJJ)
+/// Modules d'une licence émise avant leur apparition : cartes scolaires et pointage.
+const legacyModules = {'ecole', 'presence'};
+
+/// Contenu d'un code signé :
+/// CS1|id|appareil|formule|expiration(AAAAMMJJ ou 0)|émission(AAAAMMJJ)[|modules séparés par des virgules]
 class LicenseInfo {
   final String id;
   final String device;
@@ -35,7 +39,10 @@ class LicenseInfo {
   final DateTime? expires;
   final DateTime issued;
 
-  const LicenseInfo(this.id, this.device, this.plan, this.expires, this.issued);
+  /// Fonctions activées par l'administrateur (voir allModules dans card_kinds.dart).
+  final Set<String> modules;
+
+  const LicenseInfo(this.id, this.device, this.plan, this.expires, this.issued, [this.modules = legacyModules]);
 
   bool get lifetime => expires == null;
   String get planLabel => licensePlans[plan] ?? plan;
@@ -46,10 +53,12 @@ class LicenseInfo {
 
   static LicenseInfo? parse(String payload) {
     final p = payload.split('|');
-    if (p.length != 6 || p[0] != 'CS1') return null;
+    if ((p.length != 6 && p.length != 7) || p[0] != 'CS1') return null;
     final issued = _d(p[5]);
     if (issued == null) return null;
-    return LicenseInfo(p[1], p[2], p[3], _d(p[4]), issued);
+    final modules =
+        p.length == 7 ? p[6].split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toSet() : legacyModules;
+    return LicenseInfo(p[1], p[2], p[3], _d(p[4]), issued, modules);
   }
 }
 
@@ -93,6 +102,10 @@ class LicenseManager extends ChangeNotifier {
   }
 
   bool get isLicensed => status == LicenseStatus.active;
+
+  /// Fonction disponible ? En essai, tout est ouvert (cartes en filigrane) pour découvrir ;
+  /// avec une licence, seuls les modules activés par l'administrateur.
+  bool hasModule(String m) => !isLicensed || license!.modules.contains(m);
 
   String get statusLabel => switch (status) {
         LicenseStatus.trial => 'Version d\'essai',
@@ -288,6 +301,13 @@ class LicenseScope extends InheritedNotifier<LicenseManager> {
   /// Mode essai ? (faux si aucune licence n'est fournie, par exemple dans les tests).
   static bool trialOf(BuildContext context) =>
       !(context.dependOnInheritedWidgetOfExactType<LicenseScope>()?.notifier?.isLicensed ?? true);
+
+  /// Filigrane sur les cartes : version d'essai, ou type de carte non activé dans la licence.
+  static bool watermarkOf(BuildContext context, String kind) => trialOf(context) || !moduleOf(context, kind);
+
+  /// Module activé ? (vrai sans gestionnaire de licence, par exemple dans les tests).
+  static bool moduleOf(BuildContext context, String m) =>
+      context.dependOnInheritedWidgetOfExactType<LicenseScope>()?.notifier?.hasModule(m) ?? true;
 
   static LicenseManager read(BuildContext context) => context.getInheritedWidgetOfExactType<LicenseScope>()!.notifier!;
 }

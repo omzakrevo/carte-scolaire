@@ -128,7 +128,8 @@ void main() {
     expect(normalizePhone('0022670112233', '226'), '+22670112233');
     expect(normalizePhone('', '226'), isNull);
     expect(normalizePhone('Papa', '226'), isNull);
-    final m = buildSms(AttendanceSettings.defaultTemplate, awa, app.school, DateTime(2026, 11, 2), withoutAccents: true);
+    final m =
+        buildSms(AttendanceSettings.defaultTemplate, awa, app.school, DateTime(2026, 11, 2), withoutAccents: true);
     expect(m, isNot(contains('é')));
     expect(m, contains('Awa OUEDRAOGO'));
     expect(smsSegments('a' * 160), 1);

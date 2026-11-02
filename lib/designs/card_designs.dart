@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models.dart';
+import 'business_designs.dart';
 
 typedef CardBuilder = Widget Function(CardCtx c);
 
@@ -19,7 +20,11 @@ class CardDesign {
   final double defaultHeight;
   final CardBuilder build;
 
+  /// Types de carte pour lesquels le modèle est proposé (vide = tous sauf carte de visite).
+  final Set<String> kinds;
+
   const CardDesign({
+    this.kinds = const {},
     required this.id,
     required this.name,
     required this.description,
@@ -32,7 +37,52 @@ class CardDesign {
   });
 }
 
+/// Modèles proposés pour un type de carte.
+bool designFits(CardDesign d, String kind) => d.kinds.isEmpty ? kind != 'visite' : d.kinds.contains(kind);
+
 CardDesign designById(String id) => cardDesigns.firstWhere((d) => d.id == id, orElse: () => cardDesigns.first);
+
+CardDesign versoById(String id) => versoDesigns.firstWhere((d) => d.id == id, orElse: () => versoDesigns.first);
+
+/// Modèles de verso (dos de la carte).
+const versoDesigns = <CardDesign>[
+  CardDesign(
+    id: 'verso_logo',
+    name: 'Logo plein fond',
+    description: 'Couleur pleine, logo au centre, nom et slogan',
+    primary: 0xFF0D1B3E,
+    secondary: 0xFF0D1B3E,
+    accent: 0xFFC9A646,
+    build: versoLogo,
+  ),
+  CardDesign(
+    id: 'verso_services',
+    name: 'Services et photos',
+    description: 'Liste des services cochés, bande de photos et coordonnées',
+    primary: 0xFFC62828,
+    secondary: 0xFF1B1F24,
+    accent: 0xFFFF8F00,
+    build: versoServices,
+  ),
+  CardDesign(
+    id: 'verso_galerie',
+    name: 'Galerie de réalisations',
+    description: 'Grille de photos encadrées avec services et contacts',
+    primary: 0xFF1A237E,
+    secondary: 0xFF0D1B3E,
+    accent: 0xFFFFC107,
+    build: versoGalerie,
+  ),
+  CardDesign(
+    id: 'verso_reglement',
+    name: 'Texte et mentions',
+    description: 'Logo, texte libre (règlement, « si vous trouvez cette carte… ») et signature',
+    primary: 0xFF1B2A6B,
+    secondary: 0xFF1B2A6B,
+    accent: 0xFFE31E24,
+    build: versoTexte,
+  ),
+];
 
 const cardDesigns = <CardDesign>[
   CardDesign(
@@ -119,9 +169,139 @@ const cardDesigns = <CardDesign>[
     build: _cahier,
   ),
   CardDesign(
+    id: 'visite',
+    name: 'Carte de visite',
+    description: 'Nom, fonction, téléphone, e-mail, adresse et QR code de contact',
+    primary: 0xFF0D1B3E,
+    secondary: 0xFF0D1B3E,
+    accent: 0xFFC9A646,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: _visite,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_diagonale',
+    name: 'Visite · bande diagonale',
+    description: 'Image en biais à droite, nom de la structure en grand, téléphone mis en avant',
+    primary: 0xFFD32F2F,
+    secondary: 0xFF1B1F24,
+    accent: 0xFF1B1F24,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visiteDiagonale,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_hexagone',
+    name: 'Visite · collage hexagonal',
+    description: 'Images en hexagones sur bande colorée, services et barre de contact',
+    primary: 0xFFC62828,
+    secondary: 0xFF111111,
+    accent: 0xFFFFFFFF,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visiteHexagone,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_bandeau_nom',
+    name: 'Visite · nom en bandeau',
+    description: 'Nom dans un bandeau sombre, QR code encadré, coordonnées avec icônes',
+    primary: 0xFFE53935,
+    secondary: 0xFF111111,
+    accent: 0xFFE53935,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visiteBandeauNom,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_cercle',
+    name: 'Visite · cercle illustré',
+    description: 'Grande image ronde bordée d\'arcs, liste de services cochés',
+    primary: 0xFFEF6C00,
+    secondary: 0xFF1A237E,
+    accent: 0xFFEF6C00,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visiteCercle,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_courbe',
+    name: 'Panneau courbe',
+    description: 'Logo à gauche, panneau arrondi avec nom et coordonnées',
+    primary: 0xFF1B4D2E,
+    secondary: 0xFF1B4D2E,
+    accent: 0xFFF39C12,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visiteCourbe,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_bandes',
+    name: 'Bandes et demi-cercle',
+    description: 'Bandes verticales, logo dans un cercle, nom de la structure en grand',
+    primary: 0xFFD32F2F,
+    secondary: 0xFF151515,
+    accent: 0xFFD32F2F,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visiteBandes,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_plein',
+    name: 'Couleur pleine',
+    description: 'Fond coloré, logo et slogan au centre, nom en bas',
+    primary: 0xFF0B5D3B,
+    secondary: 0xFF0B5D3B,
+    accent: 0xFFFFC928,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visitePlein,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'visite_galerie',
+    name: 'Visite · services et galerie',
+    description: 'Services et contacts à gauche, galerie de photos sur fond coloré',
+    primary: 0xFF1A237E,
+    secondary: 0xFF0D1440,
+    accent: 0xFFFFC107,
+    defaultWidth: 85,
+    defaultHeight: 55,
+    build: visiteGalerie,
+    kinds: {'visite'},
+  ),
+  CardDesign(
+    id: 'membre_vague',
+    name: 'Membre · vagues',
+    description: 'Photo ronde, vagues bleu et or, image de fond en filigrane',
+    primary: 0xFF283593,
+    secondary: 0xFF283593,
+    accent: 0xFFFFB300,
+    build: membreVague,
+    kinds: {'membre'},
+  ),
+  CardDesign(
+    id: 'visiteur',
+    name: 'Badge visiteur',
+    description: 'Grand titre, numéro de badge, zone autorisée et QR code',
+    primary: 0xFFE65100,
+    secondary: 0xFF263238,
+    accent: 0xFFFFD54F,
+    defaultWidth: 54,
+    defaultHeight: 85.6,
+    build: _visiteur,
+    kinds: {'visiteur'},
+  ),
+  CardDesign(
     id: 'personnalise',
-    name: 'Fond personnalisé',
-    description: 'Votre propre fond (Photoshop, Illustrator…) avec photo et infos par-dessus',
+    name: 'Fond personnalisé / libre',
+    description: 'Votre fond (image ou couleur unie) : composez la carte avec vos textes, formes et images',
     primary: 0xFF1B2A6B,
     secondary: 0xFF1B2A6B,
     accent: 0xFFE31E24,
@@ -143,7 +323,11 @@ class CardView extends StatelessWidget {
   /// Filigrane « version d'essai » (mode test, sans licence).
   final bool watermark;
 
+  /// Affiche le verso (modèle [CardTemplate.versoDesign] et éléments du verso).
+  final bool back;
+
   const CardView({
+    this.back = false,
     super.key,
     required this.template,
     required this.school,
@@ -158,8 +342,8 @@ class CardView extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = template.widthMm * scale;
     final h = template.heightMm * scale;
-    final c = CardCtx(template, school, student, w, h, editor: editor);
-    final design = designById(template.designId);
+    final c = CardCtx(template, school, student, w, h, editor: editor, back: back);
+    final design = back ? versoById(template.versoDesign) : designById(template.designId);
     return SizedBox(
       width: w,
       height: h,
@@ -173,9 +357,19 @@ class CardView extends StatelessWidget {
             decoration: TextDecoration.none,
             fontWeight: FontWeight.w400,
           ),
-          child: watermark
-              ? Stack(fit: StackFit.expand, children: [design.build(c), IgnorePointer(child: TrialWatermark(u: c.u))])
-              : design.build(c),
+          child: Stack(fit: StackFit.expand, children: [
+            design.build(c),
+            if (!back && template.bgOverlay && template.background != null && template.designId != 'personnalise')
+              IgnorePointer(
+                child: Opacity(
+                  opacity: template.bgOpacity.clamp(0.0, 1.0),
+                  child: Image.memory(template.background!, fit: BoxFit.cover, gaplessPlayback: true),
+                ),
+              ),
+            for (final e in template.elements)
+              if (e.back == back) c.element(e),
+            if (watermark) IgnorePointer(child: TrialWatermark(u: c.u)),
+          ]),
         ),
       ),
     );
@@ -195,7 +389,10 @@ class CardCtx {
 
   final LayerEditor? editor;
 
-  CardCtx(this.t, this.school, this.s, this.w, this.h, {this.editor}) : u = math.min(w, h) / 54;
+  /// Dessin du verso : ses calques ont leurs propres réglages (identifiants « v:… »).
+  final bool back;
+
+  CardCtx(this.t, this.school, this.s, this.w, this.h, {this.editor, this.back = false}) : u = math.min(w, h) / 54;
 
   /// Pixels logiques par millimètre.
   double get mm => w / t.widthMm;
@@ -203,6 +400,7 @@ class CardCtx {
   /// Calque déplaçable : applique le décalage et l'échelle réglés par l'utilisateur
   /// et, dans l'éditeur, rend l'élément sélectionnable, déplaçable et redimensionnable.
   Widget layer(String id, Widget child, {Alignment origin = Alignment.center}) {
+    if (back) id = 'v:$id';
     final a = t.layers[id];
     final ed = editor;
     Widget w = child;
@@ -376,7 +574,7 @@ class CardCtx {
         color: Colors.white,
         padding: EdgeInsets.all(size * 0.05),
         child: QrImageView(
-          data: s.qrData.isEmpty ? '-' : s.qrData,
+          data: qrContent.isEmpty ? '-' : qrContent,
           padding: EdgeInsets.zero,
           backgroundColor: Colors.white,
           eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: dark),
@@ -392,8 +590,146 @@ class CardCtx {
         'sexe' => s.sexe,
         'classe' => s.classe,
         'contact' => s.contact,
+        'service' => s.service,
+        'email' => s.email,
+        'adresse' => s.adresse,
         _ => '',
       };
+
+  /// Contenu du QR : fiche contact (vCard) pour une carte de visite, sinon le matricule.
+  String get qrContent {
+    if (t.kind != 'visite') return s.qrData;
+    String esc(String v) => v.replaceAll(RegExp(r'[\n\r]'), ' ').replaceAll(';', ',');
+    return [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'N:${esc(s.nom)};${esc(s.prenom)}',
+      'FN:${esc('${s.prenom} ${s.nom}'.trim())}',
+      if (school.name.isNotEmpty) 'ORG:${esc(school.name)}',
+      if (s.service.isNotEmpty) 'TITLE:${esc(s.service)}',
+      if (s.contact.isNotEmpty) 'TEL:${esc(s.contact)}',
+      if (s.email.isNotEmpty) 'EMAIL:${esc(s.email)}',
+      if (s.adresse.isNotEmpty) 'ADR:;;${esc(s.adresse)}',
+      'END:VCARD',
+    ].join('\n');
+  }
+
+  /// Remplace les variables d'un texte libre par les infos de la personne.
+  String resolve(String text) => text
+      .replaceAll('{nom}', s.nom.toUpperCase())
+      .replaceAll('{prenom}', s.prenom)
+      .replaceAll('{nomPrenom}', valueOf('nomPrenom'))
+      .replaceAll('{matricule}', s.matricule)
+      .replaceAll('{classe}', s.classe)
+      .replaceAll('{fonction}', s.service)
+      .replaceAll('{telephone}', s.contact)
+      .replaceAll('{contact}', s.contact)
+      .replaceAll('{email}', s.email)
+      .replaceAll('{adresse}', s.adresse)
+      .replaceAll('{dateNaissance}', s.dateNaissance)
+      .replaceAll('{lieuNaissance}', s.lieuNaissance)
+      .replaceAll('{sexe}', s.sexe)
+      .replaceAll('{ecole}', school.name)
+      .replaceAll('{structure}', school.name)
+      .replaceAll('{annee}', school.schoolYear)
+      .replaceAll('{telephoneEcole}', school.phone)
+      .replaceAll('{adresseEcole}', school.address)
+      .replaceAll('{siteWeb}', school.website);
+
+  /// Élément libre (texte, forme, image) positionné en millimètres.
+  Widget element(CardElement e) {
+    final k = mm;
+    final w = math.max(0.5, e.w) * k;
+    final h = math.max(0.2, e.h) * k;
+    final radius = BorderRadius.circular(e.radius * k);
+    final border = e.borderWidth > 0 ? Border.all(color: Color(e.borderColor), width: e.borderWidth * k) : null;
+    Widget child = switch (e.type) {
+      'rect' => DecoratedBox(decoration: BoxDecoration(color: Color(e.color), borderRadius: radius, border: border)),
+      'ellipse' =>
+        DecoratedBox(decoration: BoxDecoration(color: Color(e.color), shape: BoxShape.circle, border: border)),
+      'line' =>
+        DecoratedBox(decoration: BoxDecoration(color: Color(e.color), borderRadius: BorderRadius.circular(h / 2))),
+      'image' => Container(
+          decoration: BoxDecoration(borderRadius: radius, border: border),
+          clipBehavior: e.radius > 0 ? Clip.antiAlias : Clip.none,
+          child: e.image != null
+              ? Image.memory(e.image!, fit: BoxFit.contain, gaplessPlayback: true)
+              : const ColoredBox(color: Color(0x22000000), child: Center(child: Icon(Icons.image_outlined))),
+        ),
+      _ => Container(
+          decoration: BoxDecoration(
+            color: e.fill == null ? null : Color(e.fill!),
+            borderRadius: radius,
+            border: border,
+          ),
+          padding: EdgeInsets.symmetric(horizontal: e.fill != null || border != null ? 0.6 * k : 0),
+          alignment: switch (e.align) {
+            'center' => Alignment.center,
+            'right' => Alignment.centerRight,
+            _ => Alignment.centerLeft,
+          },
+          child: LayoutBuilder(
+            builder: (context, box) => FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: switch (e.align) {
+                'center' => Alignment.center,
+                'right' => Alignment.centerRight,
+                _ => Alignment.centerLeft,
+              },
+              child: SizedBox(
+                width: box.maxWidth,
+                child: Text(
+                  resolve(e.text),
+                  textAlign: switch (e.align) {
+                    'center' => TextAlign.center,
+                    'right' => TextAlign.right,
+                    _ => TextAlign.left,
+                  },
+                  style: TextStyle(
+                    color: Color(e.color),
+                    fontSize: e.fontSize * k,
+                    fontWeight: e.bold ? FontWeight.w800 : FontWeight.w500,
+                    fontStyle: e.italic ? FontStyle.italic : FontStyle.normal,
+                    height: 1.15,
+                    fontFamily: switch (e.font) { 'serif' => 'serif', 'mono' => 'monospace', _ => null },
+                    fontFamilyFallback: switch (e.font) {
+                      'serif' => const ['Times New Roman', 'Georgia', 'Noto Serif'],
+                      'mono' => const ['Courier New', 'Consolas'],
+                      _ => null,
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    };
+    if (e.opacity < 1) child = Opacity(opacity: e.opacity.clamp(0.0, 1.0), child: child);
+    final ed = editor;
+    final id = 'el:${e.id}';
+    if (ed != null) {
+      final selected = ed.selected == id;
+      child = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ed.select(id),
+        onScaleStart: (_) => ed.begin(id, t),
+        onScaleUpdate: (d) => ed.update(id, t, d.focalPointDelta / mm, d.scale),
+        onScaleEnd: (_) => ed.end(),
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: selected ? const Color(0xFFFF6D00) : const Color(0x55FF6D00),
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: child,
+        ),
+      );
+    }
+    if (e.rotation != 0) child = Transform.rotate(angle: e.rotation * math.pi / 180, child: child);
+    return Positioned(left: e.x * k, top: e.y * k, width: w, height: h, child: child);
+  }
 
   /// Champs affichés, dans l'ordre de la carte : (clé, libellé, valeur).
   List<(String, String, String)> fields({bool includeName = true}) => [
@@ -757,14 +1093,7 @@ Widget _personnalise(CardCtx c) {
     Positioned.fill(
       child: bg != null
           ? Image.memory(bg, fit: BoxFit.cover, gaplessPlayback: true)
-          : Container(
-              color: const Color(0xFFF2F4F7),
-              alignment: Alignment.topCenter,
-              padding: EdgeInsets.all(2 * c.u),
-              child: c.line(
-                  'Ajoutez votre image de fond dans « Modifier le modèle »', c.st(1.6, color: const Color(0xFF7A8490)),
-                  align: Alignment.center),
-            ),
+          : ColoredBox(color: Color(c.t.bgColor)),
     ),
     Column(children: [
       SizedBox(height: c.h * c.t.headerSpace.clamp(0.0, 0.6)),
@@ -1487,10 +1816,259 @@ Widget _cahier(CardCtx c) {
 
 // ---------------------------------------------------------------------------
 /// Sélection et déplacement des calques dans l'éditeur de disposition.
+// ---------------------------------------------------------------------------
+// Carte de visite : nom, fonction, coordonnées.
+Widget _visite(CardCtx c) {
+  final u = c.u;
+  final fg = c.on(c.primary);
+  final hasPhoto = c.s.photo != null;
+  Widget contactRow(IconData icon, String v) => Padding(
+        padding: EdgeInsets.only(bottom: 0.9 * u * c.t.textScale),
+        child: Row(children: [
+          Container(
+            width: 3.2 * u * c.t.textScale,
+            height: 3.2 * u * c.t.textScale,
+            decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle),
+            child: Icon(icon, size: 2 * u * c.t.textScale, color: c.on(c.accent)),
+          ),
+          SizedBox(width: 1.2 * u),
+          Expanded(
+              child: c.line(v, c.st(1.9 * c.t.textScale, color: const Color(0xFF22262B), weight: FontWeight.w500))),
+        ]),
+      );
+  final contacts = c.layer(
+    'info',
+    c.fit(
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          if (c.t.shows('contact') && c.s.contact.isNotEmpty) contactRow(Icons.phone, c.s.contact),
+          if (c.t.shows('email') && c.s.email.isNotEmpty) contactRow(Icons.alternate_email, c.s.email),
+          if (c.t.shows('adresse') && c.s.adresse.isNotEmpty) contactRow(Icons.place, c.s.adresse),
+          if (c.t.shows('matricule') && c.s.matricule.isNotEmpty) contactRow(Icons.tag, c.s.matricule),
+          if (c.t.shows('classe') && c.s.classe.isNotEmpty) contactRow(Icons.apartment, c.s.classe),
+        ]),
+        align: Alignment.centerLeft),
+    origin: Alignment.centerLeft,
+  );
+  final name = c.layer(
+    'name',
+    Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      if (c.t.shows('nomPrenom'))
+        c.line('${c.s.prenom} ${c.s.nom.toUpperCase()}'.trim(),
+            c.st(3.6 * c.t.textScale, color: c.secondary, weight: FontWeight.w900)),
+      if (c.t.shows('service') && c.s.service.isNotEmpty)
+        c.line(
+            c.s.service.toUpperCase(),
+            c.st(1.9 * c.t.textScale,
+                color: c.primary == c.secondary ? c.accent : c.primary, weight: FontWeight.w700, spacing: 0.15)),
+      SizedBox(height: 0.8 * u),
+      Container(width: 10 * u, height: 0.45 * u, color: c.accent),
+    ]),
+    origin: Alignment.topLeft,
+  );
+  final brand = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+    c.logo(c.landscape ? 13 * u : 11 * u, fallbackBg: c.accent),
+    SizedBox(height: 1.2 * u),
+    c.layer(
+      'header',
+      Column(mainAxisSize: MainAxisSize.min, children: [
+        c.line((c.school.shortName.isNotEmpty ? c.school.shortName : c.school.name).toUpperCase(),
+            c.st(2.2, color: fg, weight: FontWeight.w900, spacing: 0.1),
+            align: Alignment.center),
+        if (c.school.slogan.isNotEmpty)
+          c.line(c.school.slogan, c.st(1.3, color: fg.withValues(alpha: 0.8), italic: true), align: Alignment.center),
+      ]),
+    ),
+  ]);
+  final qrSize = c.landscape ? 12 * u : 13 * u;
+  final photo = hasPhoto
+      ? c.layer('photo', ClipOval(child: Image.memory(c.s.photo!, width: 11 * u, height: 11 * u, fit: BoxFit.cover)))
+      : null;
+  if (c.landscape) {
+    return Container(
+      color: Colors.white,
+      child: Row(children: [
+        Container(
+          width: c.w * 0.36,
+          padding: EdgeInsets.all(2 * u),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [c.primary, Color.lerp(c.primary, Colors.black, 0.25)!],
+            ),
+          ),
+          child: brand,
+        ),
+        Container(width: 0.7 * u, color: c.accent),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(3 * u, 3 * u, 2.5 * u, 2.5 * u),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Expanded(child: name),
+                if (photo != null) ...[SizedBox(width: 1 * u), photo],
+              ]),
+              SizedBox(height: 2 * u),
+              Expanded(
+                child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  Expanded(child: contacts),
+                  if (c.t.showQr) ...[SizedBox(width: 1 * u), c.qr(qrSize, dark: c.secondary)],
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+  return Container(
+    color: Colors.white,
+    child: Column(children: [
+      Container(
+        height: c.h * 0.36,
+        width: double.infinity,
+        color: c.primary,
+        padding: EdgeInsets.all(2 * u),
+        child: brand,
+      ),
+      Container(height: 0.7 * u, color: c.accent),
+      Expanded(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(3 * u, 2.5 * u, 3 * u, 2 * u),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (photo != null) Center(child: photo),
+            name,
+            SizedBox(height: 1.5 * u),
+            Expanded(child: contacts),
+            if (c.t.showQr) Center(child: c.qr(qrSize, dark: c.secondary)),
+          ]),
+        ),
+      ),
+    ]),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Badge visiteur : grand titre, numéro, zone autorisée.
+Widget _visiteur(CardCtx c) {
+  final u = c.u;
+  final fg = c.on(c.primary);
+  final header = Row(children: [
+    c.logo(c.landscape ? 8 * u : 9 * u, fallbackBg: c.secondary),
+    SizedBox(width: 1.5 * u),
+    Expanded(
+      child: c.layer(
+        'header',
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          c.line(c.school.name.toUpperCase(), c.st(2, color: fg, weight: FontWeight.w900)),
+          if (c.school.slogan.isNotEmpty) c.line(c.school.slogan, c.st(1.3, color: fg.withValues(alpha: 0.85))),
+        ]),
+        origin: Alignment.centerLeft,
+      ),
+    ),
+  ]);
+  final title = c.layer(
+    'title',
+    c.line(c.t.title.isEmpty ? 'VISITEUR' : c.t.title.toUpperCase(),
+        c.st(c.landscape ? 7 : 6.2, color: c.primary, weight: FontWeight.w900, spacing: 0.4),
+        align: Alignment.center),
+  );
+  final number = c.layer(
+    'name',
+    Column(mainAxisSize: MainAxisSize.min, children: [
+      if (c.t.shows('matricule'))
+        c.line('${c.t.label('matricule')} ${c.s.matricule}'.trim(),
+            c.st(3.4 * c.t.textScale, color: c.secondary, weight: FontWeight.w900),
+            align: Alignment.center),
+      if (c.t.shows('nomPrenom') && c.s.nom.isNotEmpty)
+        c.line(c.valueOf('nomPrenom'), c.st(2.4 * c.t.textScale, color: c.secondary, weight: FontWeight.w700),
+            align: Alignment.center),
+      if (c.t.shows('classe') && c.s.classe.isNotEmpty) ...[
+        SizedBox(height: 0.8 * u),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 2.2 * u, vertical: 0.5 * u),
+          decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(3 * u)),
+          child: Text('${c.t.label('classe')} : ${c.s.classe}',
+              style: c.st(1.9 * c.t.textScale, color: c.on(c.accent), weight: FontWeight.w800)),
+        ),
+      ],
+    ]),
+  );
+  final others = c.layer(
+    'info',
+    c.info(label: c.secondary, value: const Color(0xFF15171C), includeName: false, size: 1.9),
+    origin: Alignment.topLeft,
+  );
+  final hasOthers = c.fields(includeName: false).any((f) => f.$1 != 'matricule');
+  final footer = Container(
+    width: double.infinity,
+    color: c.secondary,
+    padding: EdgeInsets.symmetric(horizontal: 2 * u, vertical: 0.8 * u),
+    child: c.layer(
+      'footer',
+      c.line(c.year.isNotEmpty ? c.year : 'Badge à porter de façon visible et à rendre à la sortie',
+          c.st(1.5, color: c.on(c.secondary), weight: FontWeight.w700),
+          align: Alignment.center),
+    ),
+  );
+  if (c.landscape) {
+    return Container(
+      color: Colors.white,
+      child: Column(children: [
+        Container(
+            color: c.primary, padding: EdgeInsets.symmetric(horizontal: 2.5 * u, vertical: 1.2 * u), child: header),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(3 * u, 1.5 * u, 3 * u, 1.2 * u),
+            child: Row(children: [
+              Expanded(
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  title,
+                  SizedBox(height: 0.8 * u),
+                  number,
+                  if (hasOthers) ...[SizedBox(height: 0.8 * u), Expanded(child: others)],
+                ]),
+              ),
+              if (c.t.showQr) ...[SizedBox(width: 2 * u), c.qr(15 * u, dark: c.secondary)],
+            ]),
+          ),
+        ),
+        footer,
+      ]),
+    );
+  }
+  return Container(
+    color: Colors.white,
+    child: Column(children: [
+      Container(
+        color: c.primary,
+        padding: EdgeInsets.fromLTRB(2.5 * u, 3.5 * u, 2.5 * u, 2 * u),
+        child: header,
+      ),
+      Container(height: 1 * u, color: c.accent),
+      Expanded(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(3 * u, 3 * u, 3 * u, 1.5 * u),
+          child: Column(children: [
+            title,
+            SizedBox(height: 2 * u),
+            number,
+            SizedBox(height: 2 * u),
+            if (hasOthers) Expanded(child: others) else const Spacer(),
+            if (c.t.showQr) c.qr(14 * u, dark: c.secondary),
+          ]),
+        ),
+      ),
+      footer,
+    ]),
+  );
+}
+
 class LayerEditor extends ChangeNotifier {
   String? selected;
   final VoidCallback onChanged;
   double _startScale = 1;
+  double _startW = 0, _startH = 0, _startFont = 0;
 
   LayerEditor({required this.onChanged});
 
@@ -1499,15 +2077,44 @@ class LayerEditor extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Élément libre sélectionné (identifiant « el:… »), s'il y en a un.
+  CardElement? selectedElement(CardTemplate t) {
+    final id = selected;
+    if (id == null || !id.startsWith('el:')) return null;
+    return t.element(id.substring(3));
+  }
+
   void begin(String id, CardTemplate t) {
     selected = id;
-    _startScale = t.layer(id).scale;
+    if (id.startsWith('el:')) {
+      final e = t.element(id.substring(3));
+      if (e != null) {
+        _startW = e.w;
+        _startH = e.h;
+        _startFont = e.fontSize;
+      }
+    } else {
+      _startScale = t.layer(id).scale;
+    }
     notifyListeners();
   }
 
   /// [deltaMm] : déplacement du doigt en millimètres ; [pinch] : facteur de pincement.
   void update(String id, CardTemplate t, Offset deltaMm, double pinch) {
     if (selected != id) return;
+    if (id.startsWith('el:')) {
+      final e = t.element(id.substring(3));
+      if (e == null) return;
+      e.x = (e.x + deltaMm.dx).clamp(-e.w, t.widthMm).toDouble();
+      e.y = (e.y + deltaMm.dy).clamp(-e.h, t.heightMm).toDouble();
+      if (pinch != 1) {
+        e.w = (_startW * pinch).clamp(1.0, 300.0).toDouble();
+        e.h = (_startH * pinch).clamp(0.2, 300.0).toDouble();
+        e.fontSize = (_startFont * pinch).clamp(0.8, 40.0).toDouble();
+      }
+      onChanged();
+      return;
+    }
     final a = t.layer(id);
     a.dx = (a.dx + deltaMm.dx).clamp(-t.widthMm, t.widthMm).toDouble();
     a.dy = (a.dy + deltaMm.dy).clamp(-t.heightMm, t.heightMm).toDouble();

@@ -20,6 +20,7 @@ Future<Uint8List> renderCard(
   SchoolInfo school,
   Student s, {
   bool watermark = false,
+  bool back = false,
 }) async {
   final size = Size(t.widthMm * _scale, t.heightMm * _scale);
   final png = await controller.captureFromWidget(
@@ -29,7 +30,7 @@ Future<Uint8List> renderCard(
         textDirection: TextDirection.ltr,
         child: Material(
           type: MaterialType.transparency,
-          child: CardView(template: t, school: school, student: s, scale: _scale, rounded: false, watermark: watermark),
+          child: CardView(template: t, school: school, student: s, scale: _scale, rounded: false, watermark: watermark, back: back),
         ),
       ),
     ),
@@ -52,9 +53,12 @@ Future<Uint8List> buildCardsPdf({
 }) async {
   final controller = ScreenshotController();
   final images = <Uint8List>[];
+  final backs = <Uint8List>[];
+  final verso = template.hasVerso && layout.printVerso;
   for (var i = 0; i < students.length; i++) {
     if (cancelled?.call() ?? false) throw const _Cancelled();
     images.add(await renderCard(controller, template, school, students[i], watermark: watermark));
+    if (verso) backs.add(await renderCard(controller, template, school, students[i], watermark: watermark, back: true));
     onProgress?.call(i + 1, students.length);
   }
 
@@ -64,11 +68,13 @@ Future<Uint8List> buildCardsPdf({
 
   if (!layout.a4Sheet) {
     final format = PdfPageFormat(w * mm, h * mm, marginAll: 0);
-    for (final im in images) {
-      doc.addPage(pw.Page(
-        pageFormat: format,
-        build: (_) => pw.Image(pw.MemoryImage(im), width: w * mm, height: h * mm, fit: pw.BoxFit.fill),
-      ));
+    for (var i = 0; i < images.length; i++) {
+      for (final im in [images[i], if (verso) backs[i]]) {
+        doc.addPage(pw.Page(
+          pageFormat: format,
+          build: (_) => pw.Image(pw.MemoryImage(im), width: w * mm, height: h * mm, fit: pw.BoxFit.fill),
+        ));
+      }
     }
     return doc.save();
   }
@@ -83,14 +89,14 @@ Future<Uint8List> buildCardsPdf({
   final left = (210 - gridW) / 2;
   final top = (297 - gridH) / 2;
 
-  for (var start = 0; start < images.length; start += perPage) {
-    final page = images.skip(start).take(perPage).toList();
+  void sheet(List<Uint8List> page, {required bool mirror}) {
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4.copyWith(marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0),
       build: (_) {
         final children = <pw.Widget>[];
         for (var i = 0; i < page.length; i++) {
-          final c = i % cols, r = i ~/ cols;
+          // Verso : colonnes inversées pour tomber au dos de la bonne carte (retournement bord long).
+          final c = mirror ? cols - 1 - i % cols : i % cols, r = i ~/ cols;
           children.add(pw.Positioned(
             left: (left + c * (w + layout.gapMm)) * mm,
             top: (top + r * (h + layout.gapMm)) * mm,
@@ -105,6 +111,11 @@ Future<Uint8List> buildCardsPdf({
         );
       },
     ));
+  }
+
+  for (var start = 0; start < images.length; start += perPage) {
+    sheet(images.skip(start).take(perPage).toList(), mirror: false);
+    if (verso) sheet(backs.skip(start).take(perPage).toList(), mirror: true);
   }
   return doc.save();
 }

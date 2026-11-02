@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../card_kinds.dart';
 import '../services/license.dart';
 import '../widgets/common.dart';
 
@@ -407,6 +408,22 @@ class _LicenseScreenState extends State<LicenseScreen> {
             ),
           ]),
         ),
+        const SizedBox(height: 12),
+        Text('Modules', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final m in allModules.entries)
+            Chip(
+              avatar: Icon(lm.hasModule(m.key) ? Icons.check_circle : Icons.lock_outline,
+                  size: 18, color: lm.hasModule(m.key) ? const Color(0xFF0B6B3A) : Colors.grey),
+              label: Text(m.value),
+            ),
+        ]),
+        if (ok && allModules.keys.any((m) => !lm.hasModule(m)))
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text('Pour activer un module verrouillé, contactez le vendeur : il vous enverra un nouveau code.'),
+          ),
         const SizedBox(height: 20),
         Text('1. Envoyez cet identifiant au vendeur', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),

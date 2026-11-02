@@ -145,7 +145,10 @@ String? _fieldFor(String header) {
     return 'nomComplet';
   }
   if (has('prenom') || has('first')) return 'prenom';
-  if (has('lieu')) return 'lieuNaissance';
+  if (has('mail') || has('courriel')) return 'email';
+  if (has('adresse') || has('domicile') || has('quartier') || has('address')) return 'adresse';
+  if (has('fonction') || has('poste') || has('motif') || has('titre') || h == 'job') return 'service';
+  if (has('lieu') || h == 'a') return 'lieuNaissance';
   if (has('naiss') || has('ne le') || h == 'ne e le' || has('date')) return 'dateNaissance';
   if (has('prevenir') ||
       has('urgence') ||
@@ -156,11 +159,29 @@ String? _fieldFor(String header) {
       has('tuteur')) {
     return 'contact';
   }
-  if (has('matricule') || h == 'mat' || h == 'n' || h == 'no' || has('numero') || h == 'id' || h == 'ine') {
+  if (has('matricule') ||
+      h == 'mat' ||
+      h == 'n' ||
+      h == 'no' ||
+      has('numero') ||
+      h == 'id' ||
+      h == 'ine' ||
+      has('membre') ||
+      has('badge') ||
+      has('reference')) {
     return 'matricule';
   }
   if (nomWord || h == 'name' || has('last')) return 'nom';
-  if (has('classe') || has('niveau') || h == 'class') return 'classe';
+  if (has('classe') ||
+      has('niveau') ||
+      h == 'class' ||
+      has('service') ||
+      has('departement') ||
+      has('categorie') ||
+      has('zone') ||
+      has('groupe')) {
+    return 'classe';
+  }
   if (has('sexe') || has('genre') || h == 'sex') return 'sexe';
   return null;
 }
@@ -175,6 +196,9 @@ const _labels = {
   'lieuNaissance': 'Lieu de naissance',
   'sexe': 'Sexe',
   'contact': 'Personne à prévenir',
+  'service': 'Fonction',
+  'email': 'E-mail',
+  'adresse': 'Adresse',
 };
 
 ImportResult _mapRows(List<List<String>> rows) {
@@ -188,7 +212,7 @@ ImportResult _mapRows(List<List<String>> rows) {
       final f = _fieldFor(rows[i][c]);
       if (f != null && !m.containsValue(f)) m[c] = f;
     }
-    if (m.values.any((f) => f == 'nom' || f == 'nomComplet')) {
+    if (m.values.any((f) => f == 'nom' || f == 'nomComplet') || (m.length >= 2 && m.containsValue('matricule'))) {
       headerIndex = i;
       columns = m;
       break;
@@ -229,9 +253,15 @@ ImportResult _mapRows(List<List<String>> rows) {
           s.sexe = v.isEmpty ? '' : v.substring(0, 1).toUpperCase();
         case 'contact':
           s.contact = v;
+        case 'service':
+          s.service = v;
+        case 'email':
+          s.email = v;
+        case 'adresse':
+          s.adresse = v;
       }
     });
-    if (s.nom.isEmpty && s.prenom.isEmpty) continue;
+    if (s.nom.isEmpty && s.prenom.isEmpty && s.matricule.isEmpty) continue;
     students.add(s);
   }
   return ImportResult(
@@ -250,22 +280,39 @@ String _fixDate(String v) {
 
 /// Modèle Excel vierge à remplir : une feuille « Élèves » avec les bonnes
 /// colonnes, et une feuille « Mode d'emploi » avec un exemple.
-Uint8List buildExcelTemplate() {
+Uint8List buildExcelTemplate({CardTemplate? template, String sheetName = 'Élèves', String person = 'élève'}) {
   final excel = Excel.createExcel();
   final first = excel.getDefaultSheet()!;
-  excel.rename(first, 'Élèves');
-  final sheet = excel['Élèves'];
-  const headers = [
-    'Matricule',
-    'Nom',
-    'Prénom(s)',
-    'Classe',
-    'Date de naissance',
-    'Lieu de naissance',
-    'Sexe',
-    'Personne à prévenir',
-  ];
-  const widths = [16.0, 18.0, 24.0, 10.0, 18.0, 20.0, 8.0, 22.0];
+  excel.rename(first, sheetName);
+  final sheet = excel[sheetName];
+  const exampleOf = {
+    'matricule': '24T-96',
+    'nom': 'OUATTARA',
+    'prenom': 'Daouda',
+    'service': 'Comptable',
+    'dateNaissance': '31/12/2007',
+    'lieuNaissance': 'Nadjengoala',
+    'sexe': 'M',
+    'classe': '3e',
+    'contact': '54 15 33 29',
+    'email': 'daouda@exemple.bf',
+    'adresse': 'Bobo-Dioulasso, secteur 22',
+  };
+  // Colonnes : les champs affichés sur la carte, avec leurs libellés.
+  final keys = <String>[];
+  final headers = <String>[];
+  for (final f in cardFields) {
+    if (template != null && !template.shows(f) && f != 'nomPrenom') continue;
+    if (f == 'nomPrenom') {
+      keys.addAll(['nom', 'prenom']);
+      headers.addAll(['Nom', 'Prénom(s)']);
+    } else {
+      keys.add(f);
+      headers.add(template?.label(f) ?? defaultLabels[f]!);
+    }
+  }
+  final widths = [for (final k in keys) k == 'prenom' || k == 'email' || k == 'adresse' ? 24.0 : 18.0];
+  final example = [for (final k in keys) exampleOf[k] ?? ''];
   final head = CellStyle(
     bold: true,
     fontColorHex: ExcelColor.fromHexString('#FFFFFFFF'),
@@ -281,15 +328,15 @@ Uint8List buildExcelTemplate() {
 
   final help = excel['Mode d\'emploi'];
   final lines = [
-    'Comment remplir la liste des élèves',
+    'Comment remplir la liste',
     '',
-    '1. Remplissez la feuille « Élèves » : une ligne par élève, à partir de la ligne 2.',
+    '1. Remplissez la feuille « $sheetName » : une ligne par $person, à partir de la ligne 2.',
     '2. Ne modifiez pas les titres de la première ligne.',
     '3. Seule la colonne « Nom » est obligatoire. Les autres peuvent rester vides.',
     '4. Date de naissance au format jj/mm/aaaa (ex. 12/03/2015).',
     '5. Sexe : M ou F.',
-    '6. Personne à prévenir : numéro de téléphone d\'un parent ou tuteur.',
-    '7. Enregistrez le fichier puis importez-le dans l\'application (onglet Élèves).',
+    '6. Téléphone : numéro joignable (parent ou tuteur pour un élève).',
+    '7. Enregistrez le fichier puis importez-le dans l\'application (onglet $sheetName).',
     '',
     'Exemple :',
   ];
@@ -297,7 +344,6 @@ Uint8List buildExcelTemplate() {
     help.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i)).value = TextCellValue(lines[i]);
   }
   help.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).cellStyle = CellStyle(bold: true, fontSize: 14);
-  const example = ['24T-96', 'OUATTARA', 'Daouda', '3e', '31/12/2007', 'Nadjengoala', 'M', '54 15 33 29'];
   final r0 = lines.length;
   for (var i = 0; i < headers.length; i++) {
     help.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: r0))
@@ -306,6 +352,6 @@ Uint8List buildExcelTemplate() {
     help.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: r0 + 1)).value = TextCellValue(example[i]);
     help.setColumnWidth(i, widths[i] + (i == 0 ? 50 : 0));
   }
-  excel.setDefaultSheet('Élèves');
+  excel.setDefaultSheet(sheetName);
   return Uint8List.fromList(excel.encode()!);
 }

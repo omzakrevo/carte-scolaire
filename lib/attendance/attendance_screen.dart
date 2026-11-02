@@ -10,6 +10,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../app_state.dart';
+import '../card_kinds.dart';
 import '../models.dart';
 import '../services/license.dart';
 import '../widgets/common.dart';
@@ -270,8 +271,10 @@ class _ScanStationState extends State<ScanStation> {
                     color: Colors.black,
                     alignment: Alignment.center,
                     padding: const EdgeInsets.all(16),
-                    child: Text('Caméra indisponible : ${e.errorCode.name}\nAutorisez la caméra dans les réglages du téléphone.',
-                        textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
+                    child: Text(
+                        'Caméra indisponible : ${e.errorCode.name}\nAutorisez la caméra dans les réglages du téléphone.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white)),
                   ),
                 ),
                 IgnorePointer(
@@ -321,11 +324,11 @@ class _ScanStationState extends State<ScanStation> {
       _Counter('Présents', present, _green, Icons.how_to_reg),
       _Counter('Retards', late, _orange, Icons.schedule),
       _Counter('Sortis', out, _blue, Icons.logout),
-      _Counter(DateTime.now().isBefore(ctrl.settings.absenceLimit(DateTime.now())) ? 'Non arrivés' : 'Absents',
-          missing, _red, Icons.person_off),
+      _Counter(DateTime.now().isBefore(ctrl.settings.absenceLimit(DateTime.now())) ? 'Non arrivés' : 'Absents', missing,
+          _red, Icons.person_off),
     ]);
 
-    final result = _ResultCard(result: _last, big: wide || widget.kiosk);
+    final result = _ResultCard(result: _last, big: wide || widget.kiosk, company: ctrl.isCompany);
 
     final recent = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('Derniers passages', style: Theme.of(context).textTheme.titleSmall),
@@ -357,7 +360,7 @@ class _ScanStationState extends State<ScanStation> {
             icon: Icons.event_busy,
             text: ctrl.today.closed
                 ? 'Aujourd\'hui est marqué « jour sans école » : aucun SMS d\'absence ne sera envoyé.'
-                : 'Aujourd\'hui n\'est pas un jour de classe dans les réglages : aucun SMS d\'absence ne sera envoyé.',
+                : 'Aujourd\'hui n\'est pas un jour ouvré dans les réglages : aucun SMS d\'absence ne sera envoyé.',
           ),
         ),
       SingleChildScrollView(scrollDirection: Axis.horizontal, child: modeSel),
@@ -453,7 +456,8 @@ class KioskPage extends StatelessWidget {
 class _ResultCard extends StatelessWidget {
   final ScanResult? result;
   final bool big;
-  const _ResultCard({required this.result, required this.big});
+  final bool company;
+  const _ResultCard({required this.result, required this.big, this.company = false});
 
   @override
   Widget build(BuildContext context) {
@@ -476,7 +480,7 @@ class _ResultCard extends StatelessWidget {
     }
     if (r.unknown) {
       return _box(context, _red, Icons.error_outline, 'Carte inconnue',
-          'Ce code ne correspond à aucun élève de ce projet.\nCode lu : ${r.code.length > 40 ? '${r.code.substring(0, 40)}…' : r.code}');
+          'Ce code ne correspond à aucune fiche de ce projet.\nCode lu : ${r.code.length > 40 ? '${r.code.substring(0, 40)}…' : r.code}');
     }
     final s = r.student!;
     final color = r.duplicate ? Colors.grey.shade700 : (r.entry ? (r.late ? _orange : _green) : _blue);
@@ -484,7 +488,9 @@ class _ResultCard extends StatelessWidget {
         ? 'Déjà pointé à ${hhmm(r.time)}'
         : r.entry
             ? (r.late ? 'ENTRÉE ${hhmm(r.time)} · EN RETARD' : 'ENTRÉE ${hhmm(r.time)}')
-            : 'SORTIE ${hhmm(r.time)}';
+            : company
+                ? 'SORTIE ${hhmm(r.time)} · ${hoursLabel(r.workedMin)} AUJOURD\'HUI'
+                : 'SORTIE ${hhmm(r.time)}';
     return Container(
       padding: EdgeInsets.all(big ? 20 : 14),
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(18)),
@@ -494,19 +500,22 @@ class _ResultCard extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(s.fullName,
-                style: (big ? t.headlineMedium : t.titleLarge)?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                style: (big ? t.headlineMedium : t.titleLarge)
+                    ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
             Text('${s.classe}${s.matricule.isNotEmpty ? ' · ${s.matricule}' : ''}',
                 style: (big ? t.titleLarge : t.titleMedium)?.copyWith(color: Colors.white70)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(30)),
+              decoration:
+                  BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(30)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(r.duplicate ? Icons.replay : (r.entry ? Icons.login : Icons.logout), color: Colors.white),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(label,
-                      style: (big ? t.titleLarge : t.titleMedium)?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                      style: (big ? t.titleLarge : t.titleMedium)
+                          ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
                 ),
               ]),
             ),
@@ -525,7 +534,10 @@ class _ResultCard extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
               Text(sub, style: const TextStyle(color: Colors.white)),
             ]),
           ),
@@ -555,7 +567,8 @@ class _Counter extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('$value',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: color, fontWeight: FontWeight.w800)),
+                  style:
+                      Theme.of(context).textTheme.headlineSmall?.copyWith(color: color, fontWeight: FontWeight.w800)),
               Text(label, style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
           ),
@@ -689,7 +702,7 @@ class _TodayViewState extends State<TodayView> {
     }
     if (!mounted) return;
     if (!await confirm(context, 'Envoyer les SMS d\'absence',
-        '${pending.length} parent(s) vont recevoir un SMS depuis la puce de ce téléphone (coût d\'un SMS normal).',
+        '${pending.length} destinataire(s) vont recevoir un SMS depuis la puce de ce téléphone (coût d\'un SMS normal).',
         ok: 'Envoyer')) {
       return;
     }
@@ -703,7 +716,7 @@ class _TodayViewState extends State<TodayView> {
   Future<void> _sendOne(AttendanceController ctrl, Student s, bool licensed) async {
     final to = normalizePhone(s.contact, ctrl.settings.countryCode);
     if (to == null) {
-      toast(context, 'Pas de numéro valide pour le parent de ${s.fullName}.', error: true);
+      toast(context, 'Pas de numéro valide pour ${s.fullName}.', error: true);
       return;
     }
     if (!SmsService.supported) {
@@ -719,13 +732,16 @@ class _TodayViewState extends State<TodayView> {
       return;
     }
     final (ok, _, _) = await ctrl.sendAbsenceSms(only: [s]);
-    if (mounted) toast(context, ok == 1 ? 'SMS envoyé au parent.' : 'Échec : ${ctrl.today.sms[s.id] ?? ''}', error: ok != 1);
+    if (mounted) toast(context, ok == 1 ? 'SMS envoyé.' : 'Échec : ${ctrl.today.sms[s.id] ?? ''}', error: ok != 1);
   }
 
   @override
   Widget build(BuildContext context) {
     final ctrl = AttendanceScope.of(context);
     final licensed = !LicenseScope.trialOf(context);
+    final kind = kindById(AppScope.of(context).template.kind);
+    final company = ctrl.isCompany;
+    final who = company ? 'employé(s)' : '${kind.person}(s)';
     final all = ctrl.todaySummary();
     final classes = {for (final d in all) d.student.classe.trim()}.where((c) => c.isNotEmpty).toList()..sort();
     final q = _query.toLowerCase();
@@ -754,8 +770,8 @@ class _TodayViewState extends State<TodayView> {
       Section(
         title: '${frWeekdays[now.weekday - 1]} ${frDate(now)}',
         subtitle: afterCutoff
-            ? 'Après ${ctrl.settings.absenceTime}, les élèves non pointés sont absents.'
-            : 'Les élèves non pointés seront déclarés absents à ${ctrl.settings.absenceTime}.',
+            ? 'Après ${ctrl.settings.absenceTime}, les $who non pointés sont absents.'
+            : 'Les $who non pointés seront déclarés absents à ${ctrl.settings.absenceTime}.',
         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
           const Text('Jour sans école'),
           Switch(value: ctrl.today.closed, onChanged: ctrl.setClosed),
@@ -765,7 +781,7 @@ class _TodayViewState extends State<TodayView> {
             Icon(Icons.sms_outlined, color: Theme.of(context).colorScheme.primary),
             Text(pending == 0
                 ? 'Aucun SMS d\'absence en attente.'
-                : '$pending absent(s) sans SMS envoyé.${ctrl.settings.autoSms && SmsService.supported ? ' Envoi automatique à ${ctrl.settings.absenceTime}.' : ''}'),
+                : '$pending absent(s) sans SMS envoyé.${ctrl.autoSmsOn && SmsService.supported ? ' Envoi automatique à ${ctrl.settings.absenceTime}.' : ''}'),
             if (SmsService.supported)
               FilledButton.icon(
                 onPressed: ctrl.sending || pending == 0 ? null : () => _sendAll(ctrl, licensed),
@@ -775,7 +791,7 @@ class _TodayViewState extends State<TodayView> {
                 label: Text(ctrl.sending ? 'Envoi en cours…' : 'Envoyer les SMS maintenant'),
               )
             else
-              const Text('Sur ordinateur : ouvrez le menu à droite d\'un absent pour prévenir le parent par WhatsApp.',
+              const Text('Sur ordinateur : ouvrez le menu à droite d\'un absent pour prévenir par WhatsApp.',
                   style: TextStyle(fontStyle: FontStyle.italic)),
           ]),
           if (ctrl.lastSendReport != null)
@@ -787,7 +803,7 @@ class _TodayViewState extends State<TodayView> {
         SizedBox(
           width: 260,
           child: TextField(
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Rechercher un élève'),
+            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Rechercher'),
             onChanged: (v) => setState(() => _query = v),
           ),
         ),
@@ -795,7 +811,7 @@ class _TodayViewState extends State<TodayView> {
           DropdownButton<String>(
             value: _classe,
             items: [
-              const DropdownMenuItem(value: '', child: Text('Toutes les classes')),
+              DropdownMenuItem(value: '', child: Text('Tous : ${kind.group.toLowerCase()}')),
               for (final c in classes) DropdownMenuItem(value: c, child: Text(c)),
             ],
             onChanged: (v) => setState(() => _classe = v ?? ''),
@@ -811,11 +827,12 @@ class _TodayViewState extends State<TodayView> {
           (_Filter.out, 'Sortis'),
           (_Filter.excused, 'Justifiés'),
         ])
-          ChoiceChip(label: Text('$l (${count(f)})'), selected: _filter == f, onSelected: (_) => setState(() => _filter = f)),
+          ChoiceChip(
+              label: Text('$l (${count(f)})'), selected: _filter == f, onSelected: (_) => setState(() => _filter = f)),
       ]),
       const SizedBox(height: 8),
       if (list.isEmpty)
-        const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Aucun élève dans cette liste.'))),
+        const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Personne dans cette liste.'))),
       for (final d in list)
         Card(
           margin: const EdgeInsets.only(bottom: 6),
@@ -826,6 +843,7 @@ class _TodayViewState extends State<TodayView> {
               d.student.classe,
               if (d.arrival != null) 'Arrivée ${hhmm(d.arrival!)}',
               if (d.departure != null) 'Sortie ${hhmm(d.departure!)}',
+              if (company && d.workedMin > 0) '${hoursLabel(d.workedMin)} travaillées',
               if (d.sms != null) 'SMS : ${d.sms}',
             ].join(' · ')),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -862,7 +880,7 @@ class _TodayViewState extends State<TodayView> {
                   if (d.scans > 0) const PopupMenuItem(value: 'undo', child: Text('Annuler le dernier passage')),
                   if (d.status == DayStatus.absent || d.status == DayStatus.notYet)
                     PopupMenuItem(
-                        value: 'sms', child: Text(SmsService.supported ? 'Envoyer le SMS au parent' : 'Prévenir par WhatsApp')),
+                        value: 'sms', child: Text(SmsService.supported ? 'Envoyer le SMS' : 'Prévenir par WhatsApp')),
                 ],
               ),
             ]),
@@ -941,9 +959,12 @@ class _ReportViewState extends State<ReportView> {
         to: _range.end,
         classFilter: _classe,
         trial: trial,
+        company: ctrl.isCompany,
+        groupLabel: kindById(app.template.kind).group,
       );
       String two(int v) => v.toString().padLeft(2, '0');
-      final name = 'presences_${dateKey(_range.start)}_au_${dateKey(_range.end)}${_classe.isEmpty ? '' : '_${_classe.replaceAll(RegExp(r'[^\w]'), '')}'}.xlsx';
+      final name =
+          '${ctrl.isCompany ? 'heures' : 'presences'}_${dateKey(_range.start)}_au_${dateKey(_range.end)}${_classe.isEmpty ? '' : '_${_classe.replaceAll(RegExp(r'[^\w]'), '')}'}.xlsx';
       final uri = await FilePicker.saveFile(
         dialogTitle: 'Enregistrer le rapport de présences',
         fileName: name,
@@ -951,7 +972,8 @@ class _ReportViewState extends State<ReportView> {
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       );
       if (uri != null && mounted) {
-        toast(context, 'Rapport Excel enregistré (${days.length} jour(s), édité à ${two(DateTime.now().hour)}h${two(DateTime.now().minute)}).');
+        toast(context,
+            'Rapport Excel enregistré (${days.length} jour(s), édité à ${two(DateTime.now().hour)}h${two(DateTime.now().minute)}).');
       }
     } catch (e) {
       if (mounted) toast(context, 'Export impossible : $e', error: true);
@@ -963,12 +985,16 @@ class _ReportViewState extends State<ReportView> {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
+    final kind = kindById(app.template.kind);
+    final company = AttendanceScope.of(context).isCompany;
     final classes = {for (final s in app.students) s.classe.trim()}.where((c) => c.isNotEmpty).toList()..sort();
     if (!classes.contains(_classe)) _classe = '';
     return ListView(padding: const EdgeInsets.all(12), children: [
       Section(
         title: 'Rapport de présences',
-        subtitle: 'Fichier Excel avec 3 feuilles : Synthèse par élève, Présences par jour, Tous les passages.',
+        subtitle: company
+            ? 'Fichier Excel : heures travaillées, retards, heures sup. et départs anticipés par employé, détail par jour, tous les passages.'
+            : 'Fichier Excel avec 3 feuilles : Synthèse par personne, Présences par jour, Tous les passages.',
         children: [
           Wrap(spacing: 6, runSpacing: 6, children: [
             for (final (k, l) in [
@@ -978,18 +1004,19 @@ class _ReportViewState extends State<ReportView> {
               ('lastmonth', 'Mois dernier'),
             ])
               ChoiceChip(label: Text(l), selected: _preset == k, onSelected: (_) => _setPreset(k)),
-            ChoiceChip(label: const Text('Autre période…'), selected: _preset == 'custom', onSelected: (_) => _custom()),
+            ChoiceChip(
+                label: const Text('Autre période…'), selected: _preset == 'custom', onSelected: (_) => _custom()),
           ]),
           const SizedBox(height: 12),
           Text('Du ${frDate(_range.start)} au ${frDate(_range.end)}', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           Row(children: [
-            const Text('Classe : '),
+            Text('${kind.group} : '),
             const SizedBox(width: 8),
             DropdownButton<String>(
               value: _classe,
               items: [
-                const DropdownMenuItem(value: '', child: Text('Toutes les classes')),
+                const DropdownMenuItem(value: '', child: Text('Tous')),
                 for (final c in classes) DropdownMenuItem(value: c, child: Text(c)),
               ],
               onChanged: (v) => setState(() => _classe = v ?? ''),
@@ -1010,7 +1037,8 @@ class _ReportViewState extends State<ReportView> {
                   style: TextStyle(color: _red)),
             ),
           const SizedBox(height: 8),
-          const Text('Seuls les jours où des cartes ont été scannées (et non marqués « jour sans école ») sont comptés.',
+          const Text(
+              'Seuls les jours où des cartes ont été scannées (et non marqués « jour sans école / fermé ») sont comptés.',
               style: TextStyle(fontStyle: FontStyle.italic)),
         ],
       ),
@@ -1065,10 +1093,10 @@ class _AttendanceSettingsViewState extends State<AttendanceSettingsView> {
       toast(context, 'Numéro invalide.', error: true);
       return;
     }
-    final sample = app.students.isNotEmpty
-        ? app.students.first
-        : (Student(nom: 'OUEDRAOGO', prenom: 'Awa', classe: '6e A'));
-    final text = '[TEST] ${buildSms(ctrl.settings.smsTemplate, sample, app.school, DateTime.now(), withoutAccents: ctrl.settings.smsWithoutAccents)}';
+    final sample =
+        app.students.isNotEmpty ? app.students.first : (Student(nom: 'OUEDRAOGO', prenom: 'Awa', classe: '6e A'));
+    final text =
+        '[TEST] ${buildSms(ctrl.smsTemplate, sample, app.school, DateTime.now(), withoutAccents: ctrl.settings.smsWithoutAccents)}';
     if (!SmsService.supported) {
       await SmsService.openWhatsApp(to, text);
       return;
@@ -1091,8 +1119,9 @@ class _AttendanceSettingsViewState extends State<AttendanceSettingsView> {
     final app = AppScope.of(context);
     final s = ctrl.settings;
     final licensed = !LicenseScope.trialOf(context);
-    final sample = app.students.isNotEmpty ? app.students.first : Student(nom: 'OUEDRAOGO', prenom: 'Awa', classe: '6e A');
-    final preview = buildSms(s.smsTemplate, sample, app.school, DateTime.now(), withoutAccents: s.smsWithoutAccents);
+    final sample =
+        app.students.isNotEmpty ? app.students.first : Student(nom: 'OUEDRAOGO', prenom: 'Awa', classe: '6e A');
+    final preview = buildSms(ctrl.smsTemplate, sample, app.school, DateTime.now(), withoutAccents: s.smsWithoutAccents);
     final segs = smsSegments(preview);
     void save() => ctrl.saveSettings();
 
@@ -1119,64 +1148,114 @@ class _AttendanceSettingsViewState extends State<AttendanceSettingsView> {
           ),
         );
 
+    final company = ctrl.isCompany;
     return ListView(padding: const EdgeInsets.all(12), children: [
       if (!app.template.showQr) const QrWarning(),
-      Section(title: 'Horaires', subtitle: 'Utilisés pour les retards et les absences.', children: [
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          time('Début des cours', s.startTime, (v) => s.startTime = v),
-          time('Heure des absences', s.absenceTime, (v) => s.absenceTime = v),
-        ]),
-        const SizedBox(height: 12),
-        Row(children: [
-          const Expanded(child: Text('Tolérance avant retard')),
-          DropdownButton<int>(
-            value: [0, 5, 10, 15, 20, 30].contains(s.lateToleranceMin) ? s.lateToleranceMin : 10,
-            items: [for (final m in [0, 5, 10, 15, 20, 30]) DropdownMenuItem(value: m, child: Text('$m min'))],
-            onChanged: (v) {
-              s.lateToleranceMin = v ?? 10;
-              save();
-            },
-          ),
-        ]),
-        Row(children: [
-          const Expanded(child: Text('Ignorer une 2e lecture de la même carte pendant')),
-          DropdownButton<int>(
-            value: [10, 30, 60, 120, 300].contains(s.doubleScanSeconds) ? s.doubleScanSeconds : 60,
-            items: [
-              for (final m in [10, 30, 60, 120, 300])
-                DropdownMenuItem(value: m, child: Text(m < 60 ? '$m s' : '${m ~/ 60} min')),
+      Section(
+        title: 'Type de structure',
+        subtitle: company
+            ? 'Entreprise : heures de travail des employés (arrivée, départ, heures travaillées, heures sup.).'
+            : 'École : présences et absences des élèves, SMS aux parents.',
+        children: [
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('École'), icon: Icon(Icons.school_outlined)),
+              ButtonSegment(value: true, label: Text('Entreprise'), icon: Icon(Icons.business_center_outlined)),
             ],
-            onChanged: (v) {
-              s.doubleScanSeconds = v ?? 60;
+            selected: {company},
+            onSelectionChanged: (v) {
+              s.company = v.first;
               save();
             },
           ),
-        ]),
-        const SizedBox(height: 8),
-        const Text('Jours de classe'),
-        const SizedBox(height: 4),
-        Wrap(spacing: 6, children: [
-          for (var d = 1; d <= 7; d++)
-            FilterChip(
-              label: Text(frWeekdays[d - 1].substring(0, 3)),
-              selected: s.schoolDays.contains(d),
-              onSelected: (v) {
-                v ? s.schoolDays.add(d) : s.schoolDays.remove(d);
-                save();
-              },
-            ),
-        ]),
-      ]),
+        ],
+      ),
       const SizedBox(height: 12),
       Section(
-        title: 'SMS d\'absence aux parents',
-        subtitle: 'Envoyé au numéro « Personne à prévenir » de chaque élève absent, par la puce du téléphone.',
+          title: 'Horaires',
+          subtitle: company
+              ? 'Utilisés pour les retards, les départs anticipés et les heures prévues.'
+              : 'Utilisés pour les retards et les absences.',
+          children: [
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              time(company ? 'Début du travail' : 'Début des cours', s.startTime, (v) => s.startTime = v),
+              if (company) time('Fin du travail', s.endTime, (v) => s.endTime = v),
+              time('Heure des absences', s.absenceTime, (v) => s.absenceTime = v),
+            ]),
+            if (company) ...[
+              const SizedBox(height: 12),
+              Row(children: [
+                const Expanded(child: Text('Pause déduite si l\'employé ne pointe pas à midi')),
+                DropdownButton<int>(
+                  value: [0, 30, 45, 60, 90, 120].contains(s.breakMin) ? s.breakMin : 60,
+                  items: [
+                    for (final m in [0, 30, 45, 60, 90, 120])
+                      DropdownMenuItem(value: m, child: Text(m == 0 ? 'Aucune' : '$m min')),
+                  ],
+                  onChanged: (v) {
+                    s.breakMin = v ?? 60;
+                    save();
+                  },
+                ),
+              ]),
+              Text('Journée prévue : ${hoursLabel(s.expectedMinutes)}', style: Theme.of(context).textTheme.bodySmall),
+            ],
+            const SizedBox(height: 12),
+            Row(children: [
+              const Expanded(child: Text('Tolérance avant retard')),
+              DropdownButton<int>(
+                value: [0, 5, 10, 15, 20, 30].contains(s.lateToleranceMin) ? s.lateToleranceMin : 10,
+                items: [
+                  for (final m in [0, 5, 10, 15, 20, 30]) DropdownMenuItem(value: m, child: Text('$m min'))
+                ],
+                onChanged: (v) {
+                  s.lateToleranceMin = v ?? 10;
+                  save();
+                },
+              ),
+            ]),
+            Row(children: [
+              const Expanded(child: Text('Ignorer une 2e lecture de la même carte pendant')),
+              DropdownButton<int>(
+                value: [10, 30, 60, 120, 300].contains(s.doubleScanSeconds) ? s.doubleScanSeconds : 60,
+                items: [
+                  for (final m in [10, 30, 60, 120, 300])
+                    DropdownMenuItem(value: m, child: Text(m < 60 ? '$m s' : '${m ~/ 60} min')),
+                ],
+                onChanged: (v) {
+                  s.doubleScanSeconds = v ?? 60;
+                  save();
+                },
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Text(company ? 'Jours ouvrés' : 'Jours de classe'),
+            const SizedBox(height: 4),
+            Wrap(spacing: 6, children: [
+              for (var d = 1; d <= 7; d++)
+                FilterChip(
+                  label: Text(frWeekdays[d - 1].substring(0, 3)),
+                  selected: s.schoolDays.contains(d),
+                  onSelected: (v) {
+                    v ? s.schoolDays.add(d) : s.schoolDays.remove(d);
+                    save();
+                  },
+                ),
+            ]),
+          ]),
+      const SizedBox(height: 12),
+      Section(
+        title: company ? 'SMS aux employés non pointés' : 'SMS d\'absence aux parents',
+        subtitle: company
+            ? 'Envoyé au téléphone de l\'employé qui n\'a pas pointé, par la puce du téléphone.'
+            : 'Envoyé au numéro « Personne à prévenir » de chaque élève absent, par la puce du téléphone.',
         children: [
           if (!SmsService.supported)
             const _Banner(
               color: _orange,
               icon: Icons.phone_android,
-              text: 'L\'envoi automatique de SMS fonctionne uniquement sur un téléphone ou une tablette Android avec une puce. '
+              text:
+                  'L\'envoi automatique de SMS fonctionne uniquement sur un téléphone ou une tablette Android avec une puce. '
                   'Sur ordinateur, vous pouvez prévenir les parents par WhatsApp depuis l\'onglet « Aujourd\'hui ».',
             ),
           if (!licensed)
@@ -1193,9 +1272,13 @@ class _AttendanceSettingsViewState extends State<AttendanceSettingsView> {
             title: const Text('Envoi automatique'),
             subtitle: Text('À ${s.absenceTime}, si au moins une carte a été scannée dans la journée. '
                 'L\'application doit rester ouverte sur la borne.'),
-            value: s.autoSms,
+            value: company ? s.companySms : s.autoSms,
             onChanged: (v) {
-              s.autoSms = v;
+              if (company) {
+                s.companySms = v;
+              } else {
+                s.autoSms = v;
+              }
               save();
             },
           ),
@@ -1218,7 +1301,7 @@ class _AttendanceSettingsViewState extends State<AttendanceSettingsView> {
           const SizedBox(height: 8),
           TextSetting(
             label: 'Message',
-            value: s.smsTemplate,
+            value: ctrl.smsTemplate,
             onChanged: (v) {
               s.smsTemplate = v.trim().isEmpty ? AttendanceSettings.defaultTemplate : v;
               save();
@@ -1239,14 +1322,15 @@ class _AttendanceSettingsViewState extends State<AttendanceSettingsView> {
               const SizedBox(height: 4),
               Text(preview),
               const SizedBox(height: 4),
-              Text('${preview.length} caractères · $segs SMS par parent',
+              Text('${preview.length} caractères · $segs SMS par destinataire',
                   style: TextStyle(color: segs > 1 ? _orange : null, fontWeight: FontWeight.w600)),
             ]),
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Enlever les accents'),
-            subtitle: const Text('Certains accents (ê, ô, ç, ï…) font passer un SMS de 160 à 70 caractères. Les enlever réduit le coût.'),
+            subtitle: const Text(
+                'Certains accents (ê, ô, ç, ï…) font passer un SMS de 160 à 70 caractères. Les enlever réduit le coût.'),
             value: s.smsWithoutAccents,
             onChanged: (v) {
               s.smsWithoutAccents = v;

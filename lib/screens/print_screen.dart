@@ -51,7 +51,7 @@ class PrintScreen extends StatelessWidget {
         template: state.template,
         school: state.school,
         layout: state.layout,
-        watermark: LicenseScope.trialOf(context),
+        watermark: LicenseScope.watermarkOf(context, AppScope.of(context).template.kind),
         onProgress: (d, t) => progress.value = (d, t),
         cancelled: () => cancelled,
       );
@@ -114,6 +114,17 @@ class PrintScreen extends StatelessWidget {
               : 'Une page PDF par carte, au format exact de la carte, pour imprimante à cartes PVC.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        if (state.template.hasVerso) ...[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Imprimer le verso'),
+            subtitle: Text(l.a4Sheet
+                ? 'Une page verso après chaque planche. Imprimez en recto-verso, retournement sur le bord long.'
+                : 'Une page verso après chaque carte.'),
+            value: l.printVerso,
+            onChanged: (v) => set(() => l.printVerso = v),
+          ),
+        ],
       ]),
       const SizedBox(height: 12),
       Section(title: 'Cartes à imprimer', children: [
@@ -165,7 +176,7 @@ class PrintScreen extends StatelessWidget {
       ],
     ]);
 
-    final trial = LicenseScope.trialOf(context);
+    final trial = LicenseScope.watermarkOf(context, AppScope.of(context).template.kind);
     final summary = Section(
       title: 'Récapitulatif',
       children: [
@@ -190,7 +201,8 @@ class PrintScreen extends StatelessWidget {
         _Line('Format de carte',
             '${t.widthMm.toStringAsFixed(1).replaceAll('.0', '').replaceAll('.', ',')} × ${t.heightMm.toStringAsFixed(1).replaceAll('.0', '').replaceAll('.', ',')} mm'),
         if (l.a4Sheet) _Line('Par feuille A4', perPage == 0 ? 'Carte trop grande' : '$perPage ($cols × $rows)'),
-        _Line('Pages', l.a4Sheet ? '$pages' : '${list.length}'),
+        _Line('Pages',
+            '${(l.a4Sheet ? pages : list.length) * (state.template.hasVerso && l.printVerso ? 2 : 1)}${state.template.hasVerso && l.printVerso ? ' (recto-verso)' : ''}'),
         if (noPhoto > 0)
           Padding(
             padding: const EdgeInsets.only(top: 8),

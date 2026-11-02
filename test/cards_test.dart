@@ -56,11 +56,14 @@ void main() {
   final student = Student.sample()..photo = fakePhoto();
   final noPhoto = Student(nom: 'Kaboré', prenom: 'Jean-Baptiste Wendkouni Emmanuel', classe: '6e B');
 
-  for (final d in cardDesigns) {
+  final versoIds = versoDesigns.map((d) => d.id).toSet();
+  for (final d in [...cardDesigns, ...versoDesigns]) {
     for (final portrait in [false, true]) {
       testWidgets('rendu ${d.id} ${portrait ? 'portrait' : 'paysage'}', (tester) async {
+        final back = versoIds.contains(d.id);
         final t = CardTemplate(
-          designId: d.id,
+          versoDesign: back ? d.id : '',
+          designId: back ? 'identite' : d.id,
           primary: d.primary,
           secondary: d.secondary,
           accent: d.accent,
@@ -78,7 +81,7 @@ void main() {
                 child: Center(
                   child: RepaintBoundary(
                     key: key,
-                    child: CardView(template: t, school: school, student: s, scale: 4),
+                    child: CardView(template: t, school: school, student: s, scale: 4, back: back),
                   ),
                 ),
               ),
