@@ -50,7 +50,9 @@ class Student {
   }
 
   /// Contenu du QR code imprimé sur la carte.
-  String get qrData => matricule.isNotEmpty ? matricule : [fullName, classe].where((e) => e.isNotEmpty).join(' | ');
+  /// Contenu du QR code de la carte : le matricule, ou un identifiant unique s'il n'y en a pas.
+  /// C'est ce code qui est lu à l'entrée pour le pointage des présences.
+  String get qrData => matricule.trim().isNotEmpty ? matricule.trim() : 'CS:$id';
 
   Map<String, dynamic> toJson() => {
         'id': id,

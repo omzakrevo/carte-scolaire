@@ -1,4 +1,5 @@
 import 'package:carte_scolaire/app_state.dart';
+import 'package:carte_scolaire/attendance/attendance_controller.dart';
 import 'package:carte_scolaire/main.dart';
 import 'package:carte_scolaire/models.dart';
 import 'package:carte_scolaire/screens/layout_editor_screen.dart';
@@ -20,13 +21,16 @@ void main() {
         Student(nom: 'Kaboré', prenom: 'Jean', classe: '6e B'),
       ]);
       final lm = LicenseManager()..debugUnlocked();
-      await tester
-          .pumpWidget(LicenseScope(manager: lm, child: AppScope(state: state, child: const CarteScolaireApp())));
+      final att = AttendanceController(state);
+      addTearDown(att.dispose);
+      await tester.pumpWidget(LicenseScope(
+          manager: lm,
+          child: AppScope(state: state, child: AttendanceScope(controller: att, child: const CarteScolaireApp()))));
       await tester.pumpAndSettle();
       expect(find.text('Choisir un modèle'), findsOneWidget);
 
       expect(find.text('Version d\'essai'), findsWidgets);
-      for (final label in ['Projets', 'Élèves', 'Photos', 'Impression']) {
+      for (final label in ['Présences', 'Aujourd\'hui', 'Rapport Excel', 'Réglages', 'Projets', 'Élèves', 'Photos', 'Impression']) {
         await tester.tap(find.text(label).last);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

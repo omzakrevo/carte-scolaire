@@ -77,6 +77,17 @@ Dans **Modèle → Déplacer et redimensionner les éléments** : touchez un él
 - Une licence (1, 3, 6 mois, 1 an ou définitive) est un **code signé** lié à l'identifiant de l'appareil. Il est vérifié sur le téléphone, sans base de données : la signature se fait avec une clé privée que seul l'administrateur possède (jamais publiée sur GitHub).
 - **Page administrateur** : https://omzakrevo.github.io/carte-scolaire/admin/ — attribuer, révoquer, codes de réinitialisation du mot de passe, sauvegarde. Elle publie `licenses/registry.json` (révocations) que l'application consulte quand elle a Internet.
 
+## Présences (pointage des élèves)
+
+Onglet **Présences** :
+
+- **Pointage** : à l'entrée et à la sortie, l'élève présente sa carte. Lecture par la **caméra** du téléphone ou de la tablette, ou par une **douchette 2D (QR) USB** sur ordinateur (elle se comporte comme un clavier). Mode **Auto** (1er passage = entrée, suivant = sortie), ou Entrée / Sortie forcé. Une 2e lecture rapide de la même carte est ignorée. Bip, photo et nom de l'élève, retard signalé. **Mode borne plein écran** : l'écran reste allumé.
+- Le QR code doit être activé sur le modèle de carte (il contient le matricule). Sans QR, on peut taper le matricule.
+- **Aujourd'hui** : présents, retards, absents, sortis ; corrections manuelles (présent, absence justifiée), « jour sans école ».
+- **SMS aux parents** : à l'heure choisie (09:00 par défaut), un SMS part automatiquement au numéro « Personne à prévenir » de chaque élève absent, **par la puce du téléphone Android** (aucun serveur, coût d'un SMS normal). L'application doit rester ouverte sur la borne. Message modifiable ({prenom}, {nom}, {classe}, {matricule}, {date}, {ecole}). Sur ordinateur : bouton WhatsApp. Réservé aux licences actives.
+- **Rapport Excel** : période et classe au choix ; feuilles Synthèse (taux de présence par élève), Par jour, Pointages.
+- Toutes les données restent sur l'appareil, dans le dossier du projet.
+
 ## Format du fichier Excel
 
 Le fichier `modele_liste_eleves.xlsx` sert d'exemple. Les colonnes sont reconnues d'après leur titre, dans n'importe quel ordre :

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'attendance/attendance_controller.dart';
+import 'attendance/attendance_screen.dart';
 import 'screens/photo_screen.dart';
 import 'screens/projects_screen.dart';
 import 'screens/print_screen.dart';
@@ -14,7 +16,13 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final state = AppState()..load();
   final license = LicenseManager()..load();
-  runApp(LicenseScope(manager: license, child: AppScope(state: state, child: const CarteScolaireApp())));
+  final attendance = AttendanceController(state)
+    ..smsAllowed = (() => license.isLicensed)
+    ..start();
+  runApp(LicenseScope(
+    manager: license,
+    child: AppScope(state: state, child: AttendanceScope(controller: attendance, child: const CarteScolaireApp())),
+  ));
 }
 
 bool get isDesktop =>
@@ -68,6 +76,7 @@ class _HomeShellState extends State<HomeShell> {
     (Icons.groups_outlined, Icons.groups, 'Élèves'),
     (Icons.photo_camera_outlined, Icons.photo_camera, 'Photos'),
     (Icons.print_outlined, Icons.print, 'Impression'),
+    (Icons.fact_check_outlined, Icons.fact_check, 'Présences'),
   ];
 
   @override
@@ -82,6 +91,7 @@ class _HomeShellState extends State<HomeShell> {
       StudentsScreen(onNext: () => goTo(3)),
       PhotoScreen(onGoToStudents: () => goTo(2), onNext: () => goTo(4)),
       const PrintScreen(),
+      AttendanceScreen(active: _index == 5),
     ];
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final stats = Text(

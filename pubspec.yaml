@@ -22,6 +22,10 @@ dependencies:
   camera: ^0.12.1
   cryptography: ^2.9.0
   http: ^1.6.0
+  mobile_scanner: ^7.5.0
+  wakelock_plus: ^1.8.2
+  url_launcher: ^6.3.3
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -33,6 +37,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/logo_512.png
+    - assets/sounds/
 
 flutter_launcher_icons:
   android: true
