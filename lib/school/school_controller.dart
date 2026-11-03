@@ -12,6 +12,7 @@ import '../services/storage.dart';
 import 'school_engine.dart';
 import 'school_models.dart';
 
+
 /// Notes, moyennes et bulletins du projet ouvert. Fichier : projects/<id>/gestion.json.
 class SchoolController extends ChangeNotifier {
   final AppState app;
@@ -69,11 +70,22 @@ class SchoolController extends ChangeNotifier {
     } catch (_) {}
     if (pid != _projectId) return;
     loaded = true;
+    _syncClasses();
     notifyListeners();
+  }
+
+  /// Les classes créées ici apparaissent partout (fiches élèves, impression, présences).
+  void _syncClasses() {
+    final names = book.classes.keys.where((e) => e.trim().isNotEmpty).toSet();
+    if (names.length != app.definedClasses.length || !names.containsAll(app.definedClasses)) {
+      app.definedClasses = names;
+      app.notifyListeners();
+    }
   }
 
   /// À appeler après chaque modification.
   void changed() {
+    _syncClasses();
     notifyListeners();
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 700), flush);
@@ -96,11 +108,86 @@ class SchoolController extends ChangeNotifier {
 
   List<String> get classNames => app.classes;
 
+  int get studentCount => app.students.length;
+
   List<Student> studentsOf(String className) =>
       app.students.where((s) => s.classe.trim() == className).toList()
         ..sort((a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
 
   ClassConfig classOf(String name) => book.classOf(name);
+
+  /// Crée une classe (avec un programme de matières facultatif).
+  ClassConfig addClass(String name, {SubjectPreset? preset}) {
+    final c = book.classOf(name.trim());
+    if (preset != null && c.subjects.isEmpty) {
+      c
+        ..subjects = preset.build()
+        ..scale = preset.scale;
+    }
+    changed();
+    return c;
+  }
+
+  /// Renomme une classe : réglages, emploi du temps et fiches des élèves.
+  void renameClass(String from, String to) {
+    to = to.trim();
+    if (to.isEmpty || to == from) return;
+    book.classOf(from);
+    book.renameClass(from, to);
+    for (final s in app.students) {
+      if (s.classe.trim() == from) s.classe = to;
+    }
+    app.changed();
+    changed();
+  }
+
+  /// Supprime une classe ; les élèves gardent leur fiche mais n'ont plus de classe.
+  void deleteClass(String name) {
+    book.classes.remove(name);
+    book.timetable.remove(name);
+    for (final s in app.students) {
+      if (s.classe.trim() == name) s.classe = '';
+    }
+    app.definedClasses.remove(name);
+    app.changed();
+    changed();
+  }
+
+  // ---------------- Professeurs ----------------
+
+  void saveTeacher(Teacher t) {
+    final i = book.teachers.indexWhere((e) => e.id == t.id);
+    if (i >= 0) {
+      book.teachers[i] = t;
+    } else {
+      book.teachers.add(t);
+    }
+    // Le nom suit sur les matières attribuées (bulletins).
+    for (final c in book.classes.values) {
+      for (final s in c.subjects) {
+        if (s.teacherId == t.id) s.teacher = t.name;
+      }
+    }
+    changed();
+  }
+
+  void deleteTeacher(Teacher t) {
+    book.teachers.removeWhere((e) => e.id == t.id);
+    for (final c in book.classes.values) {
+      for (final s in c.subjects) {
+        if (s.teacherId == t.id) book.assign(s, null);
+      }
+      if (c.titulaire == t.name) c.titulaire = '';
+    }
+    changed();
+  }
+
+  /// Classes et matières d'un professeur.
+  List<(String, Subject)> assignments(String teacherId) => [
+        for (final c in book.classes.values)
+          for (final s in c.subjects)
+            if (s.teacherId == teacherId) (c.name, s),
+      ];
 
   // ---------------- Absences ----------------
 

@@ -6,14 +6,14 @@ import 'card_kinds.dart';
 import 'attendance/attendance_controller.dart';
 import 'attendance/attendance_screen.dart';
 import 'school/school_controller.dart';
+import 'school/establishment_screen.dart';
 import 'school/school_screen.dart';
-import 'screens/photo_screen.dart';
+import 'screens/cards_screen.dart';
+import 'widgets/org_info_form.dart';
 import 'screens/projects_screen.dart';
-import 'screens/print_screen.dart';
 import 'screens/security_screens.dart';
 import 'services/license.dart';
 import 'screens/students_screen.dart';
-import 'screens/template_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,10 +75,42 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
-  int _index = 1;
+/// Une destination de la navigation.
+class _Dest {
+  final String key;
+  final IconData icon;
+  final IconData selected;
+  final String label;
+  final Widget page;
+  const _Dest(this.key, this.icon, this.selected, this.label, this.page);
+}
 
-  void goTo(int i) => setState(() => _index = i);
+class _HomeShellState extends State<HomeShell> {
+  /// Destination affichée (« hub », « people », « cards », « presence », « notes », « projects »).
+  String _key = 'hub';
+  String? _segment;
+  final _cards = GlobalKey<CardsScreenState>();
+
+  void go(String key) => setState(() => _key = key);
+
+  Future<void> _more(BuildContext context, List<_Dest> extra) async {
+    final k = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          for (final d in extra)
+            ListTile(
+              leading: Icon(d.key == _key ? d.selected : d.icon),
+              title: Text(d.label),
+              selected: d.key == _key,
+              onTap: () => Navigator.pop(c, d.key),
+            ),
+        ]),
+      ),
+    );
+    if (k != null) go(k);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,41 +120,50 @@ class _HomeShellState extends State<HomeShell> {
     }
     final kind = kindById(state.template.kind);
     final school = state.isSchool;
+    // Changement d'espace (projet d'un autre type) : on revient à l'accueil de l'espace.
+    if (_segment != state.segment) {
+      _segment = state.segment;
+      _key = 'hub';
+    }
     final attendance = LicenseScope.moduleOf(context, attendanceModule);
     final grades = school && LicenseScope.moduleOf(context, bulletinModule);
-    final dest = [
-      (Icons.folder_outlined, Icons.folder, 'Projets'),
-      (Icons.style_outlined, Icons.style, 'Modèle'),
-      (Icons.groups_outlined, Icons.groups, kind.people),
-      (Icons.photo_camera_outlined, Icons.photo_camera, 'Photos'),
-      (Icons.print_outlined, Icons.print, 'Impression'),
-      if (attendance) (Icons.fact_check_outlined, Icons.fact_check, school ? 'Présences' : 'Pointage'),
-      if (grades) (Icons.grading_outlined, Icons.grading, 'Notes'),
+    final dest = <_Dest>[
+      if (school)
+        const _Dest('hub', Icons.apartment_outlined, Icons.apartment, 'Établissement', EstablishmentScreen())
+      else
+        const _Dest('hub', Icons.business_outlined, Icons.business, 'Entreprise', CompanyScreen()),
+      _Dest('people', Icons.groups_outlined, Icons.groups, kind.people,
+          StudentsScreen(onNext: () {
+            go('cards');
+            _cards.currentState?.show(1);
+          })),
+      if (grades) const _Dest('notes', Icons.grading_outlined, Icons.grading, 'Notes', SchoolScreen()),
+      if (attendance)
+        _Dest('presence', Icons.fact_check_outlined, Icons.fact_check, school ? 'Présences' : 'Pointage',
+            AttendanceScreen(active: _key == 'presence')),
+      _Dest('cards', Icons.badge_outlined, Icons.badge, 'Cartes',
+          CardsScreen(key: _cards, onGoToPeople: () => go('people'))),
+      _Dest('projects', Icons.folder_outlined, Icons.folder, 'Projets', ProjectsScreen(onOpened: () => go('hub'))),
     ];
-    if (_index >= dest.length) _index = 1;
-    final pages = [
-      ProjectsScreen(onOpened: () => goTo(1)),
-      TemplateScreen(onNext: () => goTo(2)),
-      StudentsScreen(onNext: () => goTo(3)),
-      PhotoScreen(onGoToStudents: () => goTo(2), onNext: () => goTo(4)),
-      const PrintScreen(),
-      if (attendance) AttendanceScreen(active: _index == 5),
-      if (grades) const SchoolScreen(),
-    ];
+    var index = dest.indexWhere((d) => d.key == _key);
+    if (index < 0) {
+      index = 0;
+      _key = dest.first.key;
+    }
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final stats = Text(
       overflow: TextOverflow.ellipsis,
-      '${state.projectName} · ${state.students.length} ${kind.people.toLowerCase()} · ${state.photoCount} photos · ${state.validatedCount} validées',
+      '${state.projectName} · ${state.students.length} ${kind.people.toLowerCase()} · ${state.photoCount} photos',
       style: Theme.of(context).textTheme.bodySmall,
     );
 
-    final body = IndexedStack(index: _index, children: pages);
+    final body = IndexedStack(index: index, children: [for (final d in dest) d.page]);
     if (wide) {
       return Scaffold(
         body: Row(children: [
           NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: goTo,
+            selectedIndex: index,
+            onDestinationSelected: (i) => go(dest[i].key),
             labelType: NavigationRailLabelType.all,
             leading: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -144,8 +185,8 @@ class _HomeShellState extends State<HomeShell> {
               ]),
             ),
             destinations: [
-              for (final (i, a, l) in dest)
-                NavigationRailDestination(icon: Icon(i), selectedIcon: Icon(a), label: Text(l)),
+              for (final d in dest)
+                NavigationRailDestination(icon: Icon(d.icon), selectedIcon: Icon(d.selected), label: Text(d.label)),
             ],
           ),
           const VerticalDivider(width: 1),
@@ -156,7 +197,7 @@ class _HomeShellState extends State<HomeShell> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 alignment: Alignment.centerLeft,
                 child: Row(children: [
-                  Text(dest[_index].$3, style: Theme.of(context).textTheme.titleLarge),
+                  Text(dest[index].label, style: Theme.of(context).textTheme.titleLarge),
                   const Spacer(),
                   Flexible(child: stats),
                   const SizedBox(width: 12),
@@ -170,26 +211,52 @@ class _HomeShellState extends State<HomeShell> {
         ]),
       );
     }
+    // Téléphone : 5 onglets au maximum, les autres dans « Plus ».
+    final overflow = dest.length > 5;
+    final main = overflow ? dest.take(4).toList() : dest;
+    final extra = overflow ? dest.skip(4).toList() : <_Dest>[];
+    final barIndex = index < main.length ? index : main.length;
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(dest[_index].$3),
+          Text(dest[index].label),
           stats,
         ]),
         actions: const [Padding(padding: EdgeInsets.only(right: 8), child: LicenseChip())],
       ),
       body: body,
       bottomNavigationBar: NavigationBar(
-        labelBehavior: dest.length > 5
-            ? NavigationDestinationLabelBehavior.onlyShowSelected
-            : NavigationDestinationLabelBehavior.alwaysShow,
-        selectedIndex: _index,
-        onDestinationSelected: goTo,
+        selectedIndex: barIndex,
+        onDestinationSelected: (i) => i < main.length ? go(main[i].key) : _more(context, extra),
         destinations: [
-          for (final (i, a, l) in dest) NavigationDestination(icon: Icon(i), selectedIcon: Icon(a), label: l),
+          for (final d in main) NavigationDestination(icon: Icon(d.icon), selectedIcon: Icon(d.selected), label: d.label),
+          if (overflow)
+            NavigationDestination(
+              icon: const Icon(Icons.more_horiz),
+              selectedIcon: const Icon(Icons.more_horiz),
+              label: index >= main.length ? dest[index].label : 'Plus',
+            ),
         ],
       ),
     );
+  }
+}
+
+/// Accueil de l'espace entreprise : informations de l'entreprise.
+class CompanyScreen extends StatelessWidget {
+  const CompanyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Text(app.school.name.isEmpty ? 'Votre entreprise' : app.school.name,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+      Text('Ces informations figurent sur les cartes (professionnelles, membre, visiteur, visite).',
+          style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: 14),
+      OrgInfoForm(state: app),
+    ]);
   }
 }
 

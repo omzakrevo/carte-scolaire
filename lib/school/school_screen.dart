@@ -38,10 +38,10 @@ class _SchoolScreenState extends State<SchoolScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.school_outlined, size: 56),
             SizedBox(height: 12),
-            Text('Ajoutez d\'abord vos élèves avec leur classe (onglet Élèves, ou import Excel).',
+            Text('Créez d\'abord vos classes et leurs matières dans l\'onglet « Établissement » (partie Classes).',
                 textAlign: TextAlign.center),
             SizedBox(height: 6),
-            Text('Les classes, matières, notes et bulletins se gèrent ensuite ici.', textAlign: TextAlign.center),
+            Text('Les notes, résultats et bulletins se gèrent ensuite ici.', textAlign: TextAlign.center),
           ]),
         ),
       );
@@ -56,12 +56,11 @@ class _SchoolScreenState extends State<SchoolScreen> {
       onPeriod: (p) => setState(() => _period = p),
     );
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Column(children: [
         Material(
           color: Theme.of(context).colorScheme.surface,
           child: const TabBar(isScrollable: true, tabAlignment: TabAlignment.center, tabs: [
-            Tab(icon: Icon(Icons.class_outlined), text: 'Classes et matières'),
             Tab(icon: Icon(Icons.edit_note), text: 'Saisie des notes'),
             Tab(icon: Icon(Icons.leaderboard_outlined), text: 'Résultats'),
             Tab(icon: Icon(Icons.description_outlined), text: 'Bulletins'),
@@ -70,7 +69,6 @@ class _SchoolScreenState extends State<SchoolScreen> {
         ),
         Expanded(
           child: TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
-            _ClassesTab(sel: sel),
             _GradesTab(sel: sel),
             _ResultsTab(sel: sel),
             _BulletinsTab(sel: sel),
@@ -113,261 +111,6 @@ Widget _periodPicker(BuildContext context, _Selection sel) {
 }
 
 String _n(double v) => v == v.roundToDouble() ? v.toInt().toString() : fmt(v);
-
-// =====================================================================
-// Classes et matières
-// =====================================================================
-
-class _ClassesTab extends StatelessWidget {
-  final _Selection sel;
-  const _ClassesTab({required this.sel});
-
-  Future<void> _editSubject(BuildContext context, SchoolController ctrl, ClassConfig cls, Subject? existing) async {
-    final s = existing?.copy() ?? Subject(name: '');
-    final name = TextEditingController(text: s.name);
-    final coef = TextEditingController(text: _n(s.coef));
-    final max = TextEditingController(text: s.max == null ? '' : _n(s.max!));
-    final teacher = TextEditingController(text: s.teacher);
-    var conduct = s.conduct;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (d) => StatefulBuilder(
-        builder: (d, set) => AlertDialog(
-          title: Text(existing == null ? 'Nouvelle matière' : 'Modifier la matière'),
-          content: SizedBox(
-            width: 420,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'Matière')),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: coef,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Coefficient'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: max,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(labelText: 'Noté sur', hintText: _n(cls.scale)),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 10),
-              TextField(controller: teacher, decoration: const InputDecoration(labelText: 'Professeur (facultatif)')),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: conduct,
-                onChanged: (v) => set(() => conduct = v ?? false),
-                title: const Text('Matière « Conduite »'),
-                subtitle: const Text('Reçoit la retenue pour absences non justifiées'),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Enregistrer')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || name.text.trim().isEmpty) return;
-    s
-      ..name = name.text.trim()
-      ..coef = parseNote(coef.text) ?? 1
-      ..max = parseNote(max.text)
-      ..teacher = teacher.text.trim()
-      ..conduct = conduct;
-    if (existing == null) {
-      cls.subjects.add(s);
-    } else {
-      cls.subjects[cls.subjects.indexWhere((e) => e.id == existing.id)] = s;
-    }
-    ctrl.changed();
-  }
-
-  Future<void> _copyTo(BuildContext context, SchoolController ctrl, ClassConfig cls) async {
-    final others = ctrl.classNames.where((c) => c != cls.name).toList();
-    if (others.isEmpty) return;
-    final picked = <String>{};
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (d) => StatefulBuilder(
-        builder: (d, set) => AlertDialog(
-          title: Text('Copier les matières de ${cls.name}'),
-          content: SizedBox(
-            width: 380,
-            child: ListView(shrinkWrap: true, children: [
-              const Text('Les matières, coefficients et barème remplacent ceux des classes cochées. '
-                  'Les notes déjà saisies dans ces classes ne seront plus rattachées.'),
-              const SizedBox(height: 8),
-              for (final c in others)
-                CheckboxListTile(
-                  dense: true,
-                  value: picked.contains(c),
-                  onChanged: (v) => set(() => v == true ? picked.add(c) : picked.remove(c)),
-                  title: Text(c),
-                ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Copier')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || picked.isEmpty) return;
-    for (final c in picked) {
-      ctrl.classOf(c)
-        ..scale = cls.scale
-        ..subjects = cls.subjects.map((e) => e.copy(newId: true)).toList();
-    }
-    ctrl.changed();
-    if (context.mounted) toast(context, 'Matières copiées vers ${picked.length} classe(s).');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ctrl = SchoolScope.of(context);
-    final cls = ctrl.classOf(sel.className);
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        const Text('Classe :'),
-        _classPicker(context, sel),
-        Text('${ctrl.studentsOf(cls.name).length} élèves', style: Theme.of(context).textTheme.bodySmall),
-      ]),
-      const SizedBox(height: 12),
-      Section(
-        title: 'Classe ${cls.name}',
-        subtitle: 'Barème, titulaire et matières avec leurs coefficients',
-        children: [
-          Wrap(spacing: 12, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            const Text('Notes sur'),
-            SegmentedButton<double>(
-              segments: const [
-                ButtonSegment(value: 10, label: Text('10 (primaire)')),
-                ButtonSegment(value: 20, label: Text('20')),
-              ],
-              selected: {cls.scale == 10 ? 10 : 20},
-              onSelectionChanged: (v) {
-                cls.scale = v.first;
-                ctrl.changed();
-              },
-            ),
-          ]),
-          const SizedBox(height: 12),
-          TextSetting(
-            key: ValueKey('tit-${cls.name}'),
-            label: cls.scale == 10 ? 'Maître / maîtresse de la classe' : 'Professeur principal (titulaire)',
-            value: cls.titulaire,
-            onChanged: (v) {
-              cls.titulaire = v;
-              ctrl.changed();
-            },
-          ),
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            FilledButton.icon(
-              onPressed: () => _editSubject(context, ctrl, cls, null),
-              icon: const Icon(Icons.add),
-              label: const Text('Ajouter une matière'),
-            ),
-            MenuAnchor(
-              builder: (c, m, _) => OutlinedButton.icon(
-                onPressed: () => m.isOpen ? m.close() : m.open(),
-                icon: const Icon(Icons.auto_awesome_outlined),
-                label: const Text('Programme prêt à l\'emploi'),
-              ),
-              menuChildren: [
-                for (final p in subjectPresets)
-                  MenuItemButton(
-                    onPressed: () async {
-                      if (cls.subjects.isNotEmpty &&
-                          !await confirm(context, 'Remplacer les matières ?',
-                              'Les ${cls.subjects.length} matières de ${cls.name} seront remplacées par « ${p.name} ».',
-                              ok: 'Remplacer')) {
-                        return;
-                      }
-                      cls
-                        ..subjects = p.build()
-                        ..scale = p.scale;
-                      ctrl.changed();
-                    },
-                    child: Text('${p.name} – sur ${_n(p.scale)}'),
-                  ),
-              ],
-            ),
-            if (ctrl.classNames.length > 1 && cls.subjects.isNotEmpty)
-              OutlinedButton.icon(
-                onPressed: () => _copyTo(context, ctrl, cls),
-                icon: const Icon(Icons.copy_all),
-                label: const Text('Copier vers d\'autres classes'),
-              ),
-          ]),
-          const SizedBox(height: 12),
-          if (cls.subjects.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Text('Aucune matière. Ajoutez-les une par une ou choisissez un programme prêt à l\'emploi.'),
-            )
-          else ...[
-            for (var i = 0; i < cls.subjects.length; i++)
-              Builder(builder: (context) {
-                final m = cls.subjects[i];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  child: ListTile(
-                    leading: CircleAvatar(child: Text(_n(m.coef))),
-                    title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text([
-                      'Coef ${_n(m.coef)}',
-                      'sur ${_n(cls.maxOf(m))}',
-                      if (m.teacher.isNotEmpty) m.teacher,
-                      if (m.conduct) 'Conduite (retenue absences)',
-                    ].join(' · ')),
-                    onTap: () => _editSubject(context, ctrl, cls, m),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                        tooltip: 'Monter',
-                        onPressed: i == 0
-                            ? null
-                            : () {
-                                cls.subjects.insert(i - 1, cls.subjects.removeAt(i));
-                                ctrl.changed();
-                              },
-                        icon: const Icon(Icons.arrow_upward),
-                      ),
-                      IconButton(
-                        tooltip: 'Supprimer',
-                        onPressed: () async {
-                          if (await confirm(context, 'Supprimer « ${m.name} » ?',
-                              'Les notes déjà saisies pour cette matière ne seront plus comptées.',
-                              ok: 'Supprimer')) {
-                            cls.subjects.removeAt(i);
-                            ctrl.changed();
-                          }
-                        },
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ]),
-                  ),
-                );
-              }),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text('Total des coefficients : ${_n(cls.coefTotal)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ],
-        ],
-      ),
-    ]);
-  }
-}
 
 // =====================================================================
 // Saisie des notes
@@ -420,7 +163,7 @@ class _GradesTabState extends State<_GradesTab> {
       return ListView(padding: const EdgeInsets.all(16), children: [
         Wrap(spacing: 12, crossAxisAlignment: WrapCrossAlignment.center, children: [const Text('Classe :'), _classPicker(context, sel)]),
         const SizedBox(height: 24),
-        const Center(child: Text('Définissez d\'abord les matières de cette classe (onglet « Classes et matières »).')),
+        const Center(child: Text('Définissez d\'abord les matières de cette classe (onglet « Établissement », partie Classes).')),
       ]);
     }
     if (_subject == null || !cls.subjects.any((m) => m.id == _subject)) _subject = cls.subjects.first.id;

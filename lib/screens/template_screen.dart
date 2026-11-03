@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +11,7 @@ import '../services/photo_utils.dart';
 import '../services/template_package.dart';
 import 'layout_editor_screen.dart';
 import '../widgets/common.dart';
+import '../widgets/org_info_form.dart';
 
 class TemplateScreen extends StatelessWidget {
   final VoidCallback onNext;
@@ -35,14 +35,14 @@ class TemplateScreen extends StatelessWidget {
       _BackgroundSection(state: state),
       _SizeSection(state: state),
       _ColorSection(state: state),
-      _SchoolSection(state: state),
+      OrgInfoForm(state: state, sections: false),
     ];
     final next = Align(
       alignment: Alignment.centerRight,
       child: FilledButton.icon(
         onPressed: onNext,
         icon: const Icon(Icons.arrow_forward),
-        label: Text('Étape suivante : ${kindById(state.template.kind).people.toLowerCase()}'),
+        label: const Text('Étape suivante : les photos'),
       ),
     );
 
@@ -803,181 +803,6 @@ class _SavedSection extends StatelessWidget {
               ],
             ),
           ),
-      ],
-    );
-  }
-}
-
-class _SchoolSection extends StatelessWidget {
-  final AppState state;
-  const _SchoolSection({required this.state});
-
-  Future<void> _pickImage(
-      BuildContext context, Future<Uint8List> Function(Uint8List) prep, void Function(Uint8List) assign) async {
-    try {
-      final bytes = (await pickOneFile(type: FileType.image))?.$2;
-      if (bytes == null) return;
-      assign(await prep(bytes));
-      state.changed();
-    } catch (e) {
-      if (context.mounted) toast(context, 'Image illisible : choisissez un fichier PNG ou JPEG.', error: true);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = state.school;
-    void set(void Function() f) {
-      f();
-      state.changed();
-    }
-
-    Widget imageSlot(String label, String hint, Uint8List? img, Future<Uint8List> Function(Uint8List) prep,
-            void Function(Uint8List?) assign) =>
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F6F8),
-                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.all(5),
-              child: img != null ? Image.memory(img, fit: BoxFit.contain) : const Icon(Icons.image_outlined),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(hint, style: Theme.of(context).textTheme.bodySmall),
-                Wrap(spacing: 4, children: [
-                  TextButton(
-                    onPressed: () => _pickImage(context, prep, assign),
-                    child: Text(img == null ? 'Ajouter' : 'Changer'),
-                  ),
-                  if (img != null) TextButton(onPressed: () => set(() => assign(null)), child: const Text('Retirer')),
-                ]),
-              ]),
-            ),
-          ]),
-        );
-
-    Widget gap() => const SizedBox(height: 10);
-    final kind = kindById(state.template.kind);
-    final business = kind.id != 'ecole';
-    Future<void> addGallery() async {
-      try {
-        final f = await FilePicker.pickFiles(type: FileType.image);
-        for (final x in f.take(9 - s.gallery.length)) {
-          s.gallery.add(await prepareBackground(await x.readAsBytes()));
-        }
-        state.changed();
-      } catch (_) {
-        if (context.mounted) toast(context, 'Image illisible : choisissez des fichiers PNG ou JPEG.', error: true);
-      }
-    }
-
-    return Section(
-      title: kind.org,
-      subtitle: 'Ces informations apparaissent sur toutes les cartes',
-      children: [
-        imageSlot('Logo de l\'école', 'À gauche de l\'en-tête', s.logo, prepareLogo, (b) => s.logo = b),
-        imageSlot('Armoiries / emblème', 'À droite de l\'en-tête (drapeau par défaut)', s.emblem, prepareLogo,
-            (b) => s.emblem = b),
-        imageSlot('Cachet', 'Photo ou scan du cachet : le fond blanc est retiré automatiquement', s.stamp, prepareStamp,
-            (b) => s.stamp = b),
-        TextSetting(label: 'Nom de l\'établissement', value: s.name, onChanged: (v) => set(() => s.name = v)),
-        gap(),
-        TextSetting(
-            label: 'Nom court (bandeau)',
-            value: s.shortName,
-            hint: 'C.P.E MARANATHA',
-            onChanged: (v) => set(() => s.shortName = v)),
-        gap(),
-        TextSetting(
-            label: 'Devise de l\'école',
-            value: s.slogan,
-            hint: 'DISCIPLINE - TRAVAIL - PROGRÈS',
-            onChanged: (v) => set(() => s.slogan = v)),
-        gap(),
-        TextSetting(label: 'Année scolaire', value: s.schoolYear, onChanged: (v) => set(() => s.schoolYear = v)),
-        gap(),
-        TextSetting(label: 'Pays', value: s.country, onChanged: (v) => set(() => s.country = v)),
-        gap(),
-        TextSetting(label: 'Devise nationale', value: s.devise, onChanged: (v) => set(() => s.devise = v)),
-        gap(),
-        TextSetting(label: 'Ministère', value: s.ministry, onChanged: (v) => set(() => s.ministry = v)),
-        gap(),
-        TextSetting(
-            label: 'Région / Province',
-            value: s.region,
-            hint: 'Région des Cascades - Province de la Léraba',
-            onChanged: (v) => set(() => s.region = v)),
-        gap(),
-        TextSetting(
-            label: 'Nom du signataire (sous la photo)',
-            value: s.signerName,
-            hint: 'M. BAZIÉ',
-            onChanged: (v) => set(() => s.signerName = v)),
-        gap(),
-        TextSetting(
-            label: 'Mention du signataire',
-            value: s.directorTitle,
-            hint: 'Le Directeur, Le Proviseur…',
-            onChanged: (v) => set(() => s.directorTitle = v)),
-        gap(),
-        TextSetting(label: 'Adresse', value: s.address, onChanged: (v) => set(() => s.address = v)),
-        gap(),
-        TextSetting(label: 'Téléphone', value: s.phone, onChanged: (v) => set(() => s.phone = v)),
-        gap(),
-        TextSetting(
-            label: 'Site web / réseaux',
-            value: s.website,
-            hint: 'www.monentreprise.bf',
-            onChanged: (v) => set(() => s.website = v)),
-        if (business || s.services.isNotEmpty || s.gallery.isNotEmpty) ...[
-          const Divider(height: 28),
-          Text('Cartes de visite', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          TextFormField(
-            initialValue: s.services,
-            minLines: 3,
-            maxLines: 8,
-            decoration: const InputDecoration(
-              labelText: 'Services / produits (un par ligne)',
-              hintText: 'Maintenance informatique\nRéseaux Wi-Fi\nVidéosurveillance',
-            ),
-            onChanged: (v) => set(() => s.services = v),
-          ),
-          const SizedBox(height: 12),
-          Text('Images de présentation (${s.gallery.length}/9) : produits, réalisations, locaux…',
-              style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 6),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (var i = 0; i < s.gallery.length; i++)
-              Stack(children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(s.gallery[i], width: 72, height: 54, fit: BoxFit.cover),
-                ),
-                Positioned(
-                  right: -6,
-                  top: -6,
-                  child: IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.cancel, size: 18),
-                    onPressed: () => set(() => s.gallery.removeAt(i)),
-                  ),
-                ),
-              ]),
-            if (s.gallery.length < 9)
-              OutlinedButton.icon(
-                  onPressed: addGallery, icon: const Icon(Icons.add_photo_alternate), label: const Text('Ajouter')),
-          ]),
-        ],
       ],
     );
   }

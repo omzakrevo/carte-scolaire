@@ -42,14 +42,23 @@ Tous les modèles affichent les mêmes champs : Matricule, Nom et Prénom, Date 
 
 ## Deux espaces : Établissements et Entreprises
 
-L'écran **Projets** sépare les **Établissements** (écoles, collèges, lycées) et les **Entreprises** (entreprises, ONG, associations, événements). Chaque espace a ses projets, ses types de carte et ses onglets :
+L'écran **Projets** sépare les **Établissements** (écoles, collèges, lycées) et les **Entreprises** (entreprises, ONG, associations, événements). Chaque espace a ses projets et ses onglets :
 
-- **Établissement** : Modèle, Élèves, Photos, Impression, **Présences** (pointage des élèves, SMS aux parents) et **Notes** (gestion scolaire et bulletins) ;
-- **Entreprise** : cartes professionnelles, de membre, visiteur et de visite, et **Pointage** des heures de travail.
+- **Établissement** : Établissement · Élèves · Notes · Présences · Cartes · Projets ;
+- **Entreprise** : Entreprise · Personnes · Pointage · Cartes · Projets.
+
+« Cartes » regroupe les trois étapes de fabrication : Modèle, Photos, Impression. Sur téléphone, les onglets en trop sont dans « Plus ».
+
+## Onglet Établissement
+
+- **Infos** : tableau de bord (élèves, classes, matières, professeurs), étapes pour bien démarrer, et fiche de l'établissement : nom, sigle, devise, année scolaire, logo, coordonnées, directeur et cachet, en-tête officiel (pays, ministère, région, armoiries).
+- **Classes** : création directe (sans attendre les élèves) ou d'un cycle complet en un geste (CP1–CM2, 6e–3e, 2nde–Tle) avec les matières du programme ; renommer, supprimer. Fiche de classe : barème sur 10 ou 20, titulaire, matières avec coefficient, heures par semaine et professeur attribué ; copie vers d'autres classes.
+- **Professeurs** : coordonnées, matières enseignées, maximum d'heures, attributions (classe + matière), créneaux d'indisponibilité, emploi du temps personnel.
+- **Emploi du temps** : jours et horaires réglables (pauses, créneaux fermés comme le mercredi après-midi) ; **génération automatique** sans conflit de professeur, en respectant les indisponibilités et en étalant les matières sur la semaine ; retouche à la main (séances épinglées gardées à la régénération) ; vue par classe ou par professeur ; impression PDF (une classe, toutes les classes, un ou tous les professeurs).
 
 ## Notes et bulletins (établissements)
 
-- **Classes et matières** : barème sur 10 (primaire) ou sur 20, titulaire, matières avec coefficients et professeur ; programmes prêts à l'emploi (primaire CP–CE et CM, post-primaire, lycée séries A, C, D), copie des matières d'une classe à l'autre.
+- Les classes et matières se règlent dans l'onglet **Établissement** (programmes prêts à l'emploi : primaire CP–CE et CM, post-primaire, lycée séries A, C, D).
 - **Saisie des notes** par classe, période et matière (devoirs, composition… avec leur poids) ; Entrée passe à l'élève suivant.
 - **Résultats** : moyennes par matière et générale (coefficients), rangs (ex aequo), moyenne de la classe, plus forte et plus faible, mentions (félicitations, encouragements, tableau d'honneur, avertissement, blâme) ; moyenne annuelle et décision ; export Excel.
 - **Absences dans les bulletins** : celles du pointage (selon les dates de chaque trimestre) et celles saisies à la main ; justifiées, non justifiées et retards (3 retards = 1 absence, réglable). Elles peuvent être **retirées des notes** : retenue sur la note de conduite et/ou sur la moyenne générale, par absence non justifiée.

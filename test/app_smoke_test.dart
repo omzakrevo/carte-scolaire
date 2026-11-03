@@ -4,6 +4,7 @@ import 'package:carte_scolaire/main.dart';
 import 'package:carte_scolaire/models.dart';
 import 'package:carte_scolaire/school/school_controller.dart';
 import 'package:carte_scolaire/screens/layout_editor_screen.dart';
+import 'package:carte_scolaire/screens/print_screen.dart';
 import 'package:carte_scolaire/services/license.dart';
 import 'package:carte_scolaire/designs/card_designs.dart';
 import 'package:flutter/material.dart';
@@ -33,38 +34,57 @@ void main() {
               child: AttendanceScope(
                   controller: att, child: SchoolScope(controller: school, child: const CarteScolaireApp())))));
       await tester.pumpAndSettle();
-      expect(find.text('Choisir un modèle'), findsOneWidget);
+      // L'espace établissement s'ouvre sur l'onglet Établissement.
+      expect(find.text('Pour bien démarrer'), findsOneWidget);
 
       expect(find.text('Version d\'essai'), findsWidgets);
+      Future<void> open(String label) async {
+        // Barre de navigation : par l'info-bulle ; onglets internes : par le texte ;
+        // sur téléphone, les dernières destinations sont dans « Plus ».
+        var f = find.byTooltip(label);
+        if (f.evaluate().isEmpty) f = find.text(label);
+        if (f.evaluate().isNotEmpty && f.hitTestable().evaluate().isEmpty) {
+          // Onglet hors de l'écran dans une barre défilante.
+          await tester.ensureVisible(f.last);
+          await tester.pumpAndSettle();
+        }
+        if (f.hitTestable().evaluate().isEmpty && find.byIcon(Icons.more_horiz).evaluate().isNotEmpty) {
+          await tester.tap(find.byIcon(Icons.more_horiz).last);
+          await tester.pumpAndSettle();
+          f = find.text(label);
+        }
+        await tester.tap(f.hitTestable().last);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: label);
+      }
+
       for (final label in [
+        'Classes',
+        'Professeurs',
+        'Emploi du temps',
+        'Infos',
         'Présences',
         'Aujourd\'hui',
         'Rapport Excel',
         'Réglages',
-        'Projets',
         'Élèves',
-        'Photos',
-        'Impression',
         'Notes',
-        'Classes et matières',
         'Saisie des notes',
         'Résultats',
         'Bulletins',
-        'Réglages',
+        'Projets',
+        'Cartes',
+        'Modèle',
+        'Photos',
         'Impression',
       ]) {
-        // Barre de navigation : par l'info-bulle (libellés masqués sur téléphone) ; onglets : par le texte.
-        final byTip = find.byTooltip(label);
-        await tester.tap(byTip.evaluate().isNotEmpty ? byTip.last : find.text(label).last);
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull, reason: label);
+        await open(label);
       }
       await tester.scrollUntilVisible(find.text('Générer le PDF'), 300,
-          scrollable: find.byType(Scrollable).hitTestable().first);
+          scrollable: find.descendant(of: find.byType(PrintScreen), matching: find.byType(Scrollable)).first);
       expect(find.text('Générer le PDF'), findsOneWidget);
 
-      await tester.tap(find.text('Photos').last);
-      await tester.pumpAndSettle();
+      await open('Photos');
       expect(find.text('Élève 1 sur 2'), findsOneWidget);
       await tester.tap(find.byTooltip('Suivant (→)'));
       await tester.pumpAndSettle();
@@ -121,7 +141,10 @@ void main() {
             child: AttendanceScope(
                 controller: att, child: SchoolScope(controller: school, child: const CarteScolaireApp())))));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Notes').last);
+    // Établissement › Classes › 3e A : programme du post-primaire.
+    await tester.tap(find.widgetWithText(Tab, 'Classes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3e A'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Programme prêt à l\'emploi'));
     await tester.pumpAndSettle();
@@ -129,9 +152,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(school.classOf('3e A').subjects.length, 10);
     expect(find.text('Français'), findsOneWidget);
-
-    await tester.tap(find.text('Saisie des notes'));
+    await tester.pageBack();
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Notes').last);
+    await tester.pumpAndSettle();
+
     await tester.enterText(find.byType(TextField).hitTestable().first, '14,5');
     await tester.pumpAndSettle();
     final p = school.book.settings.periods.first;

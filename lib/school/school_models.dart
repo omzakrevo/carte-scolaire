@@ -20,11 +20,32 @@ class Subject {
   /// Matière « Conduite » : reçoit la retenue pour absences.
   bool conduct;
 
-  Subject({String? id, required this.name, this.coef = 1, this.teacher = '', this.max, this.conduct = false})
-      : id = id ?? _id('m');
+  /// Professeur attribué (voir [GradeBook.teachers]) ; [teacher] garde son nom pour les bulletins.
+  String? teacherId;
 
-  Subject copy({bool newId = false}) =>
-      Subject(id: newId ? null : id, name: name, coef: coef, teacher: teacher, max: max, conduct: conduct);
+  /// Nombre de séances (heures) par semaine, pour l'emploi du temps.
+  int hours;
+
+  Subject({
+    String? id,
+    required this.name,
+    this.coef = 1,
+    this.teacher = '',
+    this.max,
+    this.conduct = false,
+    this.teacherId,
+    this.hours = 0,
+  }) : id = id ?? _id('m');
+
+  Subject copy({bool newId = false}) => Subject(
+      id: newId ? null : id,
+      name: name,
+      coef: coef,
+      teacher: teacher,
+      max: max,
+      conduct: conduct,
+      teacherId: teacherId,
+      hours: hours);
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -33,9 +54,13 @@ class Subject {
         'teacher': teacher,
         'max': max,
         'conduct': conduct,
+        'teacherId': teacherId,
+        'hours': hours,
       };
 
   factory Subject.fromJson(Map<String, dynamic> j) => Subject(
+        teacherId: j['teacherId'],
+        hours: (j['hours'] as num?)?.toInt() ?? 0,
         id: j['id'],
         name: j['name'] ?? '',
         coef: _d(j['coef'], 1),
@@ -291,7 +316,19 @@ class GradeBook {
   /// Décision de fin d'année : decisions[élève] (« Admis(e) en classe supérieure »…).
   Map<String, String> decisions;
 
+  /// Professeurs de l'établissement.
+  List<Teacher> teachers;
+
+  /// Jours et créneaux de cours.
+  TimetableSettings tt;
+
+  /// Emploi du temps : timetable[classe]['jour|créneau'] = séance.
+  Map<String, Map<String, Lesson>> timetable;
+
   GradeBook({
+    List<Teacher>? teachers,
+    TimetableSettings? tt,
+    Map<String, Map<String, Lesson>>? timetable,
     SchoolSettings? settings,
     Map<String, ClassConfig>? classes,
     Map<String, Map<String, Map<String, Map<String, double>>>>? notes,
@@ -303,7 +340,46 @@ class GradeBook {
         notes = notes ?? {},
         absences = absences ?? {},
         council = council ?? {},
-        decisions = decisions ?? {};
+        decisions = decisions ?? {},
+        teachers = teachers ?? [],
+        tt = tt ?? TimetableSettings(),
+        timetable = timetable ?? {};
+
+  Teacher? teacher(String? id) {
+    if (id == null) return null;
+    for (final t in teachers) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  /// Nom du professeur d'une matière (fiche professeur, sinon nom saisi).
+  String teacherName(Subject s) => teacher(s.teacherId)?.name ?? s.teacher;
+
+  /// Attribue un professeur à une matière (ou retire l'attribution).
+  void assign(Subject s, Teacher? t) {
+    s.teacherId = t?.id;
+    s.teacher = t?.name ?? '';
+  }
+
+  /// Renomme une classe partout (réglages, emploi du temps).
+  void renameClass(String from, String to) {
+    final c = classes.remove(from);
+    if (c != null) classes[to] = c..name = to;
+    final t = timetable.remove(from);
+    if (t != null) timetable[to] = t;
+  }
+
+  /// Séances par semaine attribuées à un professeur, toutes classes confondues.
+  int teacherHours(String teacherId) {
+    var h = 0;
+    for (final c in classes.values) {
+      for (final s in c.subjects) {
+        if (s.teacherId == teacherId) h += s.hours;
+      }
+    }
+    return h;
+  }
 
   ClassConfig classOf(String name) => classes.putIfAbsent(name, () => ClassConfig(name: name, scale: guessScale(name)));
 
@@ -336,6 +412,9 @@ class GradeBook {
         'absences': absences.map((p, m) => MapEntry(p, m.map((s, a) => MapEntry(s, a.toJson())))),
         'council': council,
         'decisions': decisions,
+        'teachers': teachers.map((e) => e.toJson()).toList(),
+        'tt': tt.toJson(),
+        'timetable': timetable.map((c, m) => MapEntry(c, m.map((k, l) => MapEntry(k, l.toJson())))),
       };
 
   factory GradeBook.fromJson(Map<String, dynamic> j) {
@@ -365,6 +444,10 @@ class GradeBook {
       council: (j['council'] as Map? ?? {})
           .map((p, m) => MapEntry('$p', (m as Map).map((s, t) => MapEntry('$s', '$t')))),
       decisions: (j['decisions'] as Map? ?? {}).map((k, v) => MapEntry('$k', '$v')),
+      teachers: (j['teachers'] as List? ?? []).map((e) => Teacher.fromJson(Map<String, dynamic>.from(e))).toList(),
+      tt: j['tt'] == null ? null : TimetableSettings.fromJson(Map<String, dynamic>.from(j['tt'])),
+      timetable: (j['timetable'] as Map? ?? {}).map((c, m) => MapEntry(
+          '$c', (m as Map).map((k, l) => MapEntry('$k', Lesson.fromJson(Map<String, dynamic>.from(l as Map)))))),
     );
   }
 }
@@ -383,8 +466,26 @@ class SubjectPreset {
   const SubjectPreset(this.name, this.scale, this.subjects);
 
   List<Subject> build() => [
-        for (final (n, c) in subjects) Subject(name: n, coef: c, conduct: n == 'Conduite'),
+        for (final (n, c) in subjects)
+          Subject(name: n, coef: c, conduct: n == 'Conduite', hours: defaultHours(n, c, scale)),
       ];
+}
+
+/// Volume horaire hebdomadaire indicatif d'une matière (modifiable).
+int defaultHours(String name, double coef, double scale) {
+  if (name == 'Conduite') return 0;
+  final n = name.toLowerCase();
+  if (scale == 10) {
+    if (n.contains('calcul') || n.contains('dictée') || n.contains('lecture')) return 5;
+    if (n.contains('problèmes') || n.contains('rédaction') || n.contains('langage')) return 3;
+    return 2;
+  }
+  if (n.startsWith('français') || n.startsWith('mathématiques')) return coef >= 4 ? 6 : 5;
+  if (n.contains('physique')) return coef >= 4 ? 5 : 3;
+  if (n.contains('philosophie')) return coef >= 3 ? 4 : 2;
+  if (n.contains('eps')) return 2;
+  if (n.contains('civique')) return 1;
+  return coef >= 3 ? 4 : (coef >= 2 ? 3 : 2);
 }
 
 const subjectPresets = <SubjectPreset>[
@@ -459,3 +560,132 @@ const subjectPresets = <SubjectPreset>[
     ('Conduite', 1),
   ]),
 ];
+
+
+// ---------------------------------------------------------------------------
+// Professeurs et emploi du temps.
+
+/// Un professeur (ou un maître au primaire).
+class Teacher {
+  String id;
+  String name;
+  String phone;
+  String email;
+
+  /// Matières enseignées (texte libre : « Maths, PC »).
+  String subjects;
+
+  /// Séances maximum par semaine (0 = sans limite).
+  int maxHours;
+
+  /// Créneaux où le professeur n'est pas disponible : « jour|créneau ».
+  Set<String> unavailable;
+
+  Teacher({
+    String? id,
+    required this.name,
+    this.phone = '',
+    this.email = '',
+    this.subjects = '',
+    this.maxHours = 0,
+    Set<String>? unavailable,
+  })  : id = id ?? _id('t'),
+        unavailable = unavailable ?? {};
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'phone': phone,
+        'email': email,
+        'subjects': subjects,
+        'maxHours': maxHours,
+        'unavailable': unavailable.toList(),
+      };
+
+  factory Teacher.fromJson(Map<String, dynamic> j) => Teacher(
+        id: j['id'],
+        name: j['name'] ?? '',
+        phone: j['phone'] ?? '',
+        email: j['email'] ?? '',
+        subjects: j['subjects'] ?? '',
+        maxHours: (j['maxHours'] as num?)?.toInt() ?? 0,
+        unavailable: {...(j['unavailable'] as List? ?? []).map((e) => '$e')},
+      );
+}
+
+/// Créneau horaire d'une journée (« 07:00 – 08:00 ») ou pause.
+class TimeSlot {
+  String start;
+  String end;
+  bool isBreak;
+  String label;
+
+  TimeSlot(this.start, this.end, {this.isBreak = false, this.label = ''});
+
+  String get text => '$start – $end';
+
+  Map<String, dynamic> toJson() => {'start': start, 'end': end, 'break': isBreak, 'label': label};
+
+  factory TimeSlot.fromJson(Map<String, dynamic> j) =>
+      TimeSlot(j['start'] ?? '', j['end'] ?? '', isBreak: j['break'] ?? false, label: j['label'] ?? '');
+}
+
+const weekDays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+/// Jours de cours, créneaux et créneaux fermés à toutes les classes.
+class TimetableSettings {
+  /// Jours de cours : 1 = lundi … 6 = samedi.
+  List<int> days;
+  List<TimeSlot> slots;
+
+  /// Créneaux sans cours pour tout l'établissement (ex. mercredi après-midi) : « jour|créneau ».
+  Set<String> closed;
+
+  TimetableSettings({List<int>? days, List<TimeSlot>? slots, Set<String>? closed})
+      : days = days ?? [1, 2, 3, 4, 5],
+        slots = slots ?? defaultSlots(),
+        closed = closed ?? {'3|6', '3|7'};
+
+  static List<TimeSlot> defaultSlots() => [
+        TimeSlot('07:00', '08:00'),
+        TimeSlot('08:00', '09:00'),
+        TimeSlot('09:00', '10:00'),
+        TimeSlot('10:00', '10:15', isBreak: true, label: 'Récréation'),
+        TimeSlot('10:15', '11:15'),
+        TimeSlot('11:15', '12:15'),
+        TimeSlot('15:00', '16:00'),
+        TimeSlot('16:00', '17:00'),
+      ];
+
+  /// Créneaux de cours utilisables (hors pauses et créneaux fermés).
+  List<String> usable() => [
+        for (final d in days)
+          for (var i = 0; i < slots.length; i++)
+            if (!slots[i].isBreak && !closed.contains('$d|$i')) '$d|$i',
+      ];
+
+  Map<String, dynamic> toJson() => {
+        'days': days,
+        'slots': slots.map((e) => e.toJson()).toList(),
+        'closed': closed.toList(),
+      };
+
+  factory TimetableSettings.fromJson(Map<String, dynamic> j) => TimetableSettings(
+        days: (j['days'] as List?)?.map((e) => (e as num).toInt()).toList(),
+        slots: (j['slots'] as List?)?.map((e) => TimeSlot.fromJson(Map<String, dynamic>.from(e))).toList(),
+        closed: (j['closed'] as List?)?.map((e) => '$e').toSet(),
+      );
+}
+
+/// Une séance de l'emploi du temps. [locked] : placée à la main, gardée à la régénération.
+class Lesson {
+  String subjectId;
+  bool locked;
+  String room;
+
+  Lesson(this.subjectId, {this.locked = false, this.room = ''});
+
+  Map<String, dynamic> toJson() => {'s': subjectId, if (locked) 'l': true, if (room.isNotEmpty) 'r': room};
+
+  factory Lesson.fromJson(Map<String, dynamic> j) => Lesson(j['s'] ?? '', locked: j['l'] ?? false, room: j['r'] ?? '');
+}

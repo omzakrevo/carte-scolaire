@@ -252,8 +252,12 @@ class AppState extends ChangeNotifier {
   // ---------- Élèves ----------
   Student? get current => students.isEmpty ? null : students[currentIndex.clamp(0, students.length - 1)];
 
+  /// Classes créées dans l'onglet Établissement, même sans élève (renseigné par la gestion scolaire).
+  Set<String> definedClasses = {};
+
   List<String> get classes {
     final set = <String>{
+      ...definedClasses,
       for (final s in students)
         if (s.classe.trim().isNotEmpty) s.classe.trim()
     };
