@@ -38,6 +38,7 @@ flutter:
   assets:
     - assets/icon/logo_512.png
     - assets/sounds/
+    - assets/fonts/
 
 flutter_launcher_icons:
   android: true

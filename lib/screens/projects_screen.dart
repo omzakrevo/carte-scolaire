@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../card_kinds.dart';
 import '../models.dart';
+import '../services/license.dart';
 import '../widgets/common.dart';
 
 String _date(DateTime d) {
@@ -16,39 +18,62 @@ class ProjectsScreen extends StatelessWidget {
 
   Future<void> _create(BuildContext context, AppState state) async {
     final name = TextEditingController();
-    var keepTemplate = true;
+    final segment = state.browsing;
+    final company = segment == segmentCompany;
+    final same = segment == state.segment;
+    var keepTemplate = same;
     var keepSchool = false;
+    final kinds = kindsOfSegment(segment);
+    var kind = company ? (same && kindsOfSegment(segment).any((k) => k.id == state.template.kind) ? state.template.kind : 'pro') : 'ecole';
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c, set) => AlertDialog(
-          title: const Text('Nouveau projet'),
+          title: Text(company ? 'Nouveau projet entreprise' : 'Nouvel établissement'),
           content: SizedBox(
             width: 420,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(
                 controller: name,
                 autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Nom du projet',
-                  hintText: 'Ex. C.P.E Maranatha 2026-2027',
+                decoration: InputDecoration(
+                  labelText: company ? 'Nom de l\'entreprise ou du projet' : 'Nom de l\'établissement ou du projet',
+                  hintText: company ? 'Ex. OMZAKREVO – badges 2027' : 'Ex. C.P.E Maranatha 2026-2027',
                 ),
               ),
+              if (company) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Type de carte', style: Theme.of(c).textTheme.labelLarge),
+                ),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final k in kinds)
+                    ChoiceChip(
+                      label: Text(k.name),
+                      selected: kind == k.id,
+                      onSelected: (_) => set(() => kind = k.id),
+                    ),
+                ]),
+              ],
               const SizedBox(height: 8),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: keepTemplate,
-                onChanged: (v) => set(() => keepTemplate = v ?? true),
-                title: const Text('Reprendre le modèle de carte actuel'),
-                subtitle: const Text('Sinon, le projet démarre avec le modèle par défaut'),
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: keepSchool,
-                onChanged: (v) => set(() => keepSchool = v ?? false),
-                title: const Text('Reprendre les infos de l\'établissement'),
-                subtitle: const Text('Pour un nouveau lot du même établissement'),
-              ),
+              if (same)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: keepTemplate,
+                  onChanged: (v) => set(() => keepTemplate = v ?? true),
+                  title: const Text('Reprendre le modèle de carte actuel'),
+                  subtitle: const Text('Sinon, le projet démarre avec le modèle conseillé'),
+                ),
+              if (same)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: keepSchool,
+                  onChanged: (v) => set(() => keepSchool = v ?? false),
+                  title: Text(company ? 'Reprendre les infos de l\'entreprise' : 'Reprendre les infos de l\'établissement'),
+                  subtitle: const Text('Logo, coordonnées, cachet…'),
+                ),
             ]),
           ),
           actions: [
@@ -60,7 +85,7 @@ class ProjectsScreen extends StatelessWidget {
     );
     if (ok != true) return;
     final n = name.text.trim().isEmpty ? 'Nouveau projet' : name.text.trim();
-    await state.createProject(n, keepTemplate: keepTemplate, keepSchool: keepSchool);
+    await state.createProject(n, keepTemplate: keepTemplate, keepSchool: keepSchool, segment: segment, kind: kind);
     if (context.mounted) {
       toast(context, 'Projet « $n » créé et ouvert.');
       onOpened();
@@ -87,20 +112,72 @@ class ProjectsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final seg = state.browsing;
+    final company = seg == segmentCompany;
+    final list = state.projects.where((p) => p.segment == seg).toList();
+    final nSchool = state.projects.where((p) => p.segment == segmentSchool).length;
+    final nCompany = state.projects.length - nSchool;
+    final lm = LicenseScope.of(context);
+    final schoolAllowed = lm.hasModule('ecole') || lm.hasModule(bulletinModule);
+    final companyAllowed = kindsOfSegment(segmentCompany).any((k) => lm.hasModule(k.id));
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        SegmentedButton<String>(
+          segments: [
+            ButtonSegment(
+                value: segmentSchool,
+                icon: const Icon(Icons.school_outlined),
+                label: Text('Établissements ($nSchool)')),
+            ButtonSegment(
+                value: segmentCompany,
+                icon: const Icon(Icons.business_outlined),
+                label: Text('Entreprises ($nCompany)')),
+          ],
+          selected: {seg},
+          onSelectionChanged: (v) {
+            state.browsing = v.first;
+            state.changed();
+          },
+        ),
+        const SizedBox(height: 8),
+        Text(
+            company
+                ? 'Entreprises, ONG, associations, événements : cartes professionnelles, de membre, visiteur, '
+                    'cartes de visite et pointage des heures de travail.'
+                : 'Écoles, collèges, lycées : cartes scolaires, présences des élèves, notes et bulletins.',
+            style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 12),
         Wrap(spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center, children: [
           FilledButton.icon(
-            onPressed: () => _create(context, state),
-            icon: const Icon(Icons.create_new_folder_outlined),
-            label: const Text('Nouveau projet'),
+            onPressed: () {
+              if (!(company ? companyAllowed : schoolAllowed)) {
+                toast(context, 'L\'espace « ${segmentName(seg)} » n\'est pas activé dans votre licence.', error: true);
+                return;
+              }
+              _create(context, state);
+            },
+            icon: Icon(company ? Icons.add_business_outlined : Icons.create_new_folder_outlined),
+            label: Text(company ? 'Nouveau projet entreprise' : 'Nouvel établissement'),
           ),
-          Text('Un projet par établissement : modèle, élèves et photos sont gardés séparément.',
+          Text(
+              company
+                  ? 'Un projet par entreprise : modèle, personnes et photos sont gardés séparément.'
+                  : 'Un projet par établissement : modèle, élèves, photos, notes et présences sont gardés séparément.',
               style: Theme.of(context).textTheme.bodySmall),
         ]),
         const SizedBox(height: 16),
-        for (final p in state.projects)
+        if (list.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(children: [
+              Icon(company ? Icons.business : Icons.school, size: 56, color: scheme.outline),
+              const SizedBox(height: 8),
+              Text(company ? 'Aucun projet entreprise pour l\'instant.' : 'Aucun établissement pour l\'instant.',
+                  textAlign: TextAlign.center),
+            ]),
+          ),
+        for (final p in list)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Material(
@@ -111,12 +188,16 @@ class ProjectsScreen extends StatelessWidget {
               ),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                leading: Icon(p.id == state.projectId ? Icons.folder_open : Icons.folder_outlined,
-                    color: scheme.primary, size: 30),
+                leading: Icon(
+                    p.segment == segmentCompany
+                        ? Icons.business
+                        : (p.id == state.projectId ? Icons.folder_open : Icons.folder_outlined),
+                    color: scheme.primary,
+                    size: 30),
                 title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text([
                   if (p.schoolName.isNotEmpty) p.schoolName,
-                  '${p.studentCount} élèves · ${p.photoCount} photos',
+                  '${p.studentCount} ${p.segment == segmentCompany ? 'personnes' : 'élèves'} · ${p.photoCount} photos',
                   'Modifié le ${_date(p.updated)}',
                 ].join('\n')),
                 isThreeLine: true,

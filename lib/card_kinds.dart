@@ -169,11 +169,28 @@ CardKind kindById(String id) => cardKinds.firstWhere((k) => k.id == id, orElse: 
 /// Module de pointage des présences (activé séparément par l'administrateur).
 const attendanceModule = 'presence';
 
+/// Module de gestion scolaire : classes, matières, notes, moyennes et bulletins.
+const bulletinModule = 'bulletin';
+
 /// Tous les modules, avec leur nom, pour la page administrateur et l'écran licence.
 final allModules = <String, String>{
   for (final k in cardKinds) k.id: k.name,
   attendanceModule: 'Pointage des présences',
+  bulletinModule: 'Gestion scolaire et bulletins',
 };
+
+// ---------------------------------------------------------------------------
+// Deux espaces séparés : les établissements scolaires et les entreprises/organisations.
+
+const segmentSchool = 'etablissement';
+const segmentCompany = 'entreprise';
+
+String segmentOfKind(String kind) => kind == 'ecole' ? segmentSchool : segmentCompany;
+
+List<CardKind> kindsOfSegment(String segment) =>
+    cardKinds.where((k) => segmentOfKind(k.id) == segment).toList();
+
+String segmentName(String segment) => segment == segmentCompany ? 'Entreprises' : 'Établissements';
 
 /// Applique les réglages par défaut d'un type de carte au modèle.
 void applyKind(CardTemplate t, CardKind k, {bool changeDesign = true}) {

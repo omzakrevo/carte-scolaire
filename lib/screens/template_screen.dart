@@ -29,7 +29,7 @@ class TemplateScreen extends StatelessWidget {
       _VersoGallery(state: state, student: sample),
     ]);
     final settings = <Widget>[
-      _KindSection(state: state),
+      if (!state.isSchool) _KindSection(state: state),
       _SavedSection(state: state),
       _EditorSection(state: state),
       _BackgroundSection(state: state),
@@ -1004,7 +1004,7 @@ class _KindSection extends StatelessWidget {
       subtitle: kindById(current).description,
       children: [
         Wrap(spacing: 6, runSpacing: 6, children: [
-          for (final k in cardKinds)
+          for (final k in kindsOfSegment(state.segment))
             Builder(builder: (context) {
               final allowed = LicenseScope.moduleOf(context, k.id);
               return ChoiceChip(

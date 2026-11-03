@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
-import '../card_kinds.dart';
 import '../models.dart';
 import '../services/storage.dart';
 import 'attendance_models.dart';
@@ -251,7 +250,7 @@ class AttendanceController extends ChangeNotifier {
   }
 
   /// Pointage d'entreprise (heures de travail) ou d'école (absences des élèves).
-  bool get isCompany => settings.company ?? kindById(app.template.kind).company;
+  bool get isCompany => settings.company ?? !app.isSchool;
 
   /// Envoi automatique des SMS activé pour le mode en cours.
   bool get autoSmsOn => isCompany ? settings.companySms : settings.autoSms;

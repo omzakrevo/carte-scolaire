@@ -674,6 +674,9 @@ class ProjectInfo {
   int photoCount;
   DateTime updated;
 
+  /// Espace du projet : « etablissement » (école) ou « entreprise ».
+  String segment;
+
   ProjectInfo({
     String? id,
     required this.name,
@@ -681,6 +684,7 @@ class ProjectInfo {
     this.studentCount = 0,
     this.photoCount = 0,
     DateTime? updated,
+    this.segment = 'etablissement',
   })  : id = id ?? 'p${Student.newId()}',
         updated = updated ?? DateTime.now();
 
@@ -691,6 +695,7 @@ class ProjectInfo {
         'studentCount': studentCount,
         'photoCount': photoCount,
         'updated': updated.toIso8601String(),
+        'segment': segment,
       };
 
   factory ProjectInfo.fromJson(Map<String, dynamic> j) => ProjectInfo(
@@ -700,5 +705,6 @@ class ProjectInfo {
         studentCount: j['studentCount'] ?? 0,
         photoCount: j['photoCount'] ?? 0,
         updated: DateTime.tryParse(j['updated'] ?? ''),
+        segment: j['segment'] ?? 'etablissement',
       );
 }

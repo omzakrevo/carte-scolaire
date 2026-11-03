@@ -26,6 +26,20 @@ class AppState extends ChangeNotifier {
   String get projectName =>
       projects.firstWhere((p) => p.id == projectId, orElse: () => ProjectInfo(name: 'Projet')).name;
 
+  ProjectInfo? get currentProject {
+    for (final p in projects) {
+      if (p.id == projectId) return p;
+    }
+    return null;
+  }
+
+  /// Espace du projet ouvert : « etablissement » ou « entreprise ».
+  String get segment => currentProject?.segment ?? segmentOfKind(template.kind);
+  bool get isSchool => segment == segmentSchool;
+
+  /// Espace affiché dans la liste des projets.
+  String browsing = segmentSchool;
+
   Future<void> load() async {
     try {
       savedTemplates
@@ -43,6 +57,7 @@ class AppState extends ChangeNotifier {
         projectId = projects.any((p) => p.id == current) ? current! : projects.first.id;
         await Storage.loadProject(this, projectId);
       }
+      browsing = segment;
     } catch (_) {
       // Premier lancement ou fichier illisible : on garde les valeurs par défaut.
       if (projects.isEmpty) {
@@ -76,12 +91,40 @@ class AppState extends ChangeNotifier {
     await Storage.saveSavedTemplates(savedTemplates);
   }
 
-  /// Nouveau projet. Avec [fromCurrent], reprend le modèle (et l'établissement) actuels.
-  Future<void> createProject(String name, {bool keepTemplate = true, bool keepSchool = false}) async {
+  /// Nouveau projet. Avec [keepTemplate], reprend le modèle (et l'établissement) actuels.
+  /// [segment] : établissement ou entreprise ; [kind] : type de carte de départ.
+  Future<void> createProject(String name,
+      {bool keepTemplate = true, bool keepSchool = false, String? segment, String? kind}) async {
     await flush();
-    final p = ProjectInfo(name: name);
-    final t = keepTemplate ? template.copy() : CardTemplate();
-    final sc = keepSchool ? SchoolInfo.fromJson(school.toJson()) : SchoolInfo(name: name, shortName: '');
+    final seg = segment ?? this.segment;
+    final p = ProjectInfo(name: name, segment: seg);
+    final sameSegment = seg == this.segment;
+    var t = keepTemplate && sameSegment ? template.copy() : CardTemplate();
+    final k = kind ?? (seg == segmentSchool ? 'ecole' : (sameSegment ? t.kind : 'pro'));
+    if (t.kind != k || !keepTemplate || !sameSegment) {
+      t = keepTemplate && sameSegment ? t : CardTemplate();
+      final ck = kindById(k);
+      applyKind(t, ck);
+      final d = designById(ck.design);
+      t
+        ..primary = d.primary
+        ..secondary = d.secondary
+        ..accent = d.accent
+        ..widthMm = d.defaultWidth
+        ..heightMm = d.defaultHeight;
+    }
+    final sc = keepSchool && sameSegment
+        ? SchoolInfo.fromJson(school.toJson())
+        : SchoolInfo(name: name, shortName: '');
+    if (seg == segmentCompany && !(keepSchool && sameSegment)) {
+      sc
+        ..slogan = ''
+        ..schoolYear = ''
+        ..ministry = ''
+        ..region = ''
+        ..directorTitle = 'La Direction';
+    }
+    browsing = seg;
     projects.insert(0, p);
     projectId = p.id;
     template = t;
@@ -96,6 +139,7 @@ class AppState extends ChangeNotifier {
     if (id == projectId) return;
     await flush();
     await Storage.loadProject(this, id);
+    browsing = segment;
     await Storage.saveIndex(projects, projectId);
     notifyListeners();
   }
@@ -109,6 +153,7 @@ class AppState extends ChangeNotifier {
   Future<void> duplicateProject(ProjectInfo p) async {
     await flush();
     final copy = ProjectInfo(
+      segment: p.segment,
       name: '${p.name} (copie)',
       schoolName: p.schoolName,
       studentCount: p.studentCount,
@@ -125,7 +170,7 @@ class AppState extends ChangeNotifier {
     await Storage.deleteProject(p.id);
     if (p.id == projectId) {
       if (projects.isEmpty) {
-        final n = ProjectInfo(name: 'Nouveau projet');
+        final n = ProjectInfo(name: 'Nouveau projet', segment: p.segment);
         projects.add(n);
         projectId = n.id;
         template = CardTemplate();

@@ -5,6 +5,8 @@ import 'app_state.dart';
 import 'card_kinds.dart';
 import 'attendance/attendance_controller.dart';
 import 'attendance/attendance_screen.dart';
+import 'school/school_controller.dart';
+import 'school/school_screen.dart';
 import 'screens/photo_screen.dart';
 import 'screens/projects_screen.dart';
 import 'screens/print_screen.dart';
@@ -20,9 +22,16 @@ void main() {
   final attendance = AttendanceController(state)
     ..smsAllowed = (() => license.isLicensed)
     ..start();
+  final school = SchoolController(state, attendance: attendance);
   runApp(LicenseScope(
     manager: license,
-    child: AppScope(state: state, child: AttendanceScope(controller: attendance, child: const CarteScolaireApp())),
+    child: AppScope(
+      state: state,
+      child: AttendanceScope(
+        controller: attendance,
+        child: SchoolScope(controller: school, child: const CarteScolaireApp()),
+      ),
+    ),
   ));
 }
 
@@ -78,14 +87,17 @@ class _HomeShellState extends State<HomeShell> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final kind = kindById(state.template.kind);
+    final school = state.isSchool;
     final attendance = LicenseScope.moduleOf(context, attendanceModule);
+    final grades = school && LicenseScope.moduleOf(context, bulletinModule);
     final dest = [
       (Icons.folder_outlined, Icons.folder, 'Projets'),
       (Icons.style_outlined, Icons.style, 'Modèle'),
       (Icons.groups_outlined, Icons.groups, kind.people),
       (Icons.photo_camera_outlined, Icons.photo_camera, 'Photos'),
       (Icons.print_outlined, Icons.print, 'Impression'),
-      if (attendance) (Icons.fact_check_outlined, Icons.fact_check, 'Présences'),
+      if (attendance) (Icons.fact_check_outlined, Icons.fact_check, school ? 'Présences' : 'Pointage'),
+      if (grades) (Icons.grading_outlined, Icons.grading, 'Notes'),
     ];
     if (_index >= dest.length) _index = 1;
     final pages = [
@@ -95,6 +107,7 @@ class _HomeShellState extends State<HomeShell> {
       PhotoScreen(onGoToStudents: () => goTo(2), onNext: () => goTo(4)),
       const PrintScreen(),
       if (attendance) AttendanceScreen(active: _index == 5),
+      if (grades) const SchoolScreen(),
     ];
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final stats = Text(
@@ -119,6 +132,15 @@ class _HomeShellState extends State<HomeShell> {
                 Text('Carte\nScolaire',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Tooltip(
+                  message: school ? 'Espace établissement' : 'Espace entreprise',
+                  child: Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(school ? Icons.school : Icons.business, size: 16),
+                    label: Text(school ? 'École' : 'Entreprise', style: const TextStyle(fontSize: 11)),
+                  ),
+                ),
               ]),
             ),
             destinations: [
@@ -158,6 +180,9 @@ class _HomeShellState extends State<HomeShell> {
       ),
       body: body,
       bottomNavigationBar: NavigationBar(
+        labelBehavior: dest.length > 5
+            ? NavigationDestinationLabelBehavior.onlyShowSelected
+            : NavigationDestinationLabelBehavior.alwaysShow,
         selectedIndex: _index,
         onDestinationSelected: goTo,
         destinations: [

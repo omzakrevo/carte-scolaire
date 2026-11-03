@@ -47,7 +47,22 @@ class Storage {
     final f = File('${base.path}${_sep}projects.json');
     if (!await f.exists()) return (<ProjectInfo>[], null);
     final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-    final list = (j['projects'] as List? ?? []).map((e) => ProjectInfo.fromJson(e as Map<String, dynamic>)).toList();
+    final raw = (j['projects'] as List? ?? []).cast<Map<String, dynamic>>();
+    final list = <ProjectInfo>[];
+    for (final e in raw) {
+      final p = ProjectInfo.fromJson(e);
+      // Projets d'avant la séparation : l'espace se déduit du type de carte.
+      if (e['segment'] == null) {
+        try {
+          final pf = File('${base.path}${_sep}projects$_sep${p.id}${_sep}project.json');
+          if (await pf.exists()) {
+            final kind = ((jsonDecode(await pf.readAsString()) as Map)['template'] as Map?)?['kind'];
+            if (kind != null && kind != 'ecole') p.segment = 'entreprise';
+          }
+        } catch (_) {}
+      }
+      list.add(p);
+    }
     return (list, j['current'] as String?);
   }
 

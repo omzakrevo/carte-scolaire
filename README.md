@@ -40,6 +40,21 @@ Le projet est enregistré automatiquement sur l'appareil (liste, photos, réglag
 
 Tous les modèles affichent les mêmes champs : Matricule, Nom et Prénom, Date de naissance, Lieu de naissance, Sexe, Classe, Personne à prévenir, avec le cachet sur la photo et le nom du signataire dessous. Chaque modèle s'adapte au paysage et au portrait.
 
+## Deux espaces : Établissements et Entreprises
+
+L'écran **Projets** sépare les **Établissements** (écoles, collèges, lycées) et les **Entreprises** (entreprises, ONG, associations, événements). Chaque espace a ses projets, ses types de carte et ses onglets :
+
+- **Établissement** : Modèle, Élèves, Photos, Impression, **Présences** (pointage des élèves, SMS aux parents) et **Notes** (gestion scolaire et bulletins) ;
+- **Entreprise** : cartes professionnelles, de membre, visiteur et de visite, et **Pointage** des heures de travail.
+
+## Notes et bulletins (établissements)
+
+- **Classes et matières** : barème sur 10 (primaire) ou sur 20, titulaire, matières avec coefficients et professeur ; programmes prêts à l'emploi (primaire CP–CE et CM, post-primaire, lycée séries A, C, D), copie des matières d'une classe à l'autre.
+- **Saisie des notes** par classe, période et matière (devoirs, composition… avec leur poids) ; Entrée passe à l'élève suivant.
+- **Résultats** : moyennes par matière et générale (coefficients), rangs (ex aequo), moyenne de la classe, plus forte et plus faible, mentions (félicitations, encouragements, tableau d'honneur, avertissement, blâme) ; moyenne annuelle et décision ; export Excel.
+- **Absences dans les bulletins** : celles du pointage (selon les dates de chaque trimestre) et celles saisies à la main ; justifiées, non justifiées et retards (3 retards = 1 absence, réglable). Elles peuvent être **retirées des notes** : retenue sur la note de conduite et/ou sur la moyenne générale, par absence non justifiée.
+- **Bulletins PDF** : 4 modèles (Officiel, Détaillé, Primaire, Moderne), couleur au choix, un bulletin par page A4, pour une classe, toutes les classes ou un seul élève ; récapitulatif annuel sur le dernier bulletin. Module « Gestion scolaire et bulletins » activé dans la licence.
+
 ## Types de cartes
 
 Chaque projet choisit son type de carte ; les libellés, champs et mots de l'application s'adaptent :
