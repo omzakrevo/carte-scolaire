@@ -24,6 +24,15 @@ class Student {
 
   /// Photo d'origine (avant recadrage), pour pouvoir recadrer à nouveau.
   Uint8List? original;
+
+  /// Photo recadrée avec son vrai fond, avant le changement de fond (null = fond non changé).
+  Uint8List? raw;
+
+  /// Masque de la personne (PNG en niveaux de gris) : permet de changer la couleur du fond sans recalcul.
+  Uint8List? mask;
+
+  /// Couleur de fond appliquée à [photo] (null = fond d'origine).
+  int? photoBg;
   int photoVersion;
   bool validated;
 
@@ -43,6 +52,7 @@ class Student {
     this.photo,
     this.original,
     this.photoVersion = 0,
+    this.photoBg,
     this.validated = false,
   }) : id = id ?? newId();
 
@@ -76,6 +86,7 @@ class Student {
         'email': email,
         'adresse': adresse,
         'photoVersion': photoVersion,
+        if (photoBg != null) 'photoBg': photoBg,
         'validated': validated,
       };
 
@@ -93,6 +104,7 @@ class Student {
         email: j['email'] ?? '',
         adresse: j['adresse'] ?? '',
         photoVersion: j['photoVersion'] ?? 0,
+        photoBg: j['photoBg'],
         validated: j['validated'] ?? false,
       );
 
@@ -290,6 +302,10 @@ class CardTemplate {
   /// Couleur de fond du modèle « Fond personnalisé » quand il n'a pas d'image.
   int bgColor;
 
+  /// Fond des photos d'identité : remplacé automatiquement par cette couleur après chaque photo
+  /// (null = fond laissé tel quel).
+  int? photoBackground;
+
   /// Image de fond posée sur les autres modèles (filigrane), avec son opacité.
   bool bgOverlay;
   double bgOpacity;
@@ -327,6 +343,7 @@ class CardTemplate {
     this.kind = 'ecole',
     List<CardElement>? elements,
     this.bgColor = 0xFFFFFFFF,
+    this.photoBackground,
     this.bgOverlay = false,
     this.bgOpacity = 0.25,
     this.versoDesign = '',
@@ -386,6 +403,7 @@ class CardTemplate {
         'kind': kind,
         'elements': elements.map((e) => e.toJson()).toList(),
         'bgColor': bgColor,
+        'photoBackground': photoBackground,
         'bgOverlay': bgOverlay,
         'bgOpacity': bgOpacity,
         'versoDesign': versoDesign,
@@ -423,6 +441,7 @@ class CardTemplate {
             .map((e) => CardElement.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
         bgColor: j['bgColor'] ?? 0xFFFFFFFF,
+        photoBackground: j['photoBackground'],
         bgOverlay: j['bgOverlay'] ?? false,
         bgOpacity: (j['bgOpacity'] ?? 0.25).toDouble(),
         versoDesign: j['versoDesign'] ?? '',

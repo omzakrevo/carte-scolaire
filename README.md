@@ -40,6 +40,16 @@ Le projet est enregistré automatiquement sur l'appareil (liste, photos, réglag
 
 Tous les modèles affichent les mêmes champs : Matricule, Nom et Prénom, Date de naissance, Lieu de naissance, Sexe, Classe, Personne à prévenir, avec le cachet sur la photo et le nom du signataire dessous. Chaque modèle s'adapte au paysage et au portrait.
 
+## Fond des photos automatique
+
+Dans l'écran **Photos**, choisissez une couleur de fond (bleu, bleu clair, blanc, gris clair, rouge, vert ou n'importe quelle autre). Ensuite, après chaque photo (appareil, galerie, téléphone relié au PC), le fond est remplacé automatiquement, en arrière-plan, en quelques secondes :
+
+- le détourage est fait **sur l'appareil, sans Internet**, par le modèle MODNet (détourage de portraits, licence Apache 2.0) exécuté par ONNX Runtime ;
+- changer de couleur recolore aussitôt toutes les photos déjà traitées ; « Appliquer aux photos déjà prises » traite les anciennes ;
+- la photo d'origine est conservée : « Remettre le fond d'origine » à tout moment.
+
+Pour un bon résultat : visage et épaules bien visibles, personne nettement détachée du fond.
+
 ## Deux espaces : Établissements et Entreprises
 
 L'écran **Projets** sépare les **Établissements** (écoles, collèges, lycées) et les **Entreprises** (entreprises, ONG, associations, événements). Chaque espace a ses projets et ses onglets :

@@ -123,9 +123,13 @@ class Storage {
       final key = '${s.projectId}/${st.id}';
       final f = File(_photo(d, st.id));
       final fo = File(_photo(d, st.id, orig: true));
+      final fr = File('${d.path}${_sep}photos$_sep${st.id}_raw.jpg');
+      final fm = File('${d.path}${_sep}photos$_sep${st.id}_mask.png');
       keep
         ..add('${st.id}.jpg')
-        ..add('${st.id}_orig.jpg');
+        ..add('${st.id}_orig.jpg')
+        ..add('${st.id}_raw.jpg')
+        ..add('${st.id}_mask.png');
       if (_written[key] == st.photoVersion && await f.exists() == (st.photo != null)) continue;
       if (st.photo == null) {
         if (await f.exists()) await f.delete();
@@ -136,6 +140,13 @@ class Storage {
         if (await fo.exists()) await fo.delete();
       } else {
         await fo.writeAsBytes(st.original!, flush: true);
+      }
+      for (final (file, bytes) in [(fr, st.raw), (fm, st.mask)]) {
+        if (bytes == null) {
+          if (await file.exists()) await file.delete();
+        } else {
+          await file.writeAsBytes(bytes, flush: true);
+        }
       }
       _written[key] = st.photoVersion;
     }
@@ -171,6 +182,14 @@ class Storage {
       if (await pf.exists()) st.photo = await pf.readAsBytes();
       final po = File(_photo(d, st.id, orig: true));
       if (await po.exists()) st.original = await po.readAsBytes();
+      final pr = File('${d.path}${_sep}photos$_sep${st.id}_raw.jpg');
+      final pm = File('${d.path}${_sep}photos$_sep${st.id}_mask.png');
+      if (await pr.exists() && await pm.exists()) {
+        st.raw = await pr.readAsBytes();
+        st.mask = await pm.readAsBytes();
+      } else {
+        st.photoBg = null;
+      }
       _written['$id/${st.id}'] = st.photoVersion;
       s.students.add(st);
     }

@@ -7,6 +7,7 @@ import 'attendance/attendance_controller.dart';
 import 'attendance/attendance_screen.dart';
 import 'school/school_controller.dart';
 import 'school/establishment_screen.dart';
+import 'services/background_removal.dart';
 import 'school/school_screen.dart';
 import 'screens/cards_screen.dart';
 import 'widgets/org_info_form.dart';
@@ -23,13 +24,17 @@ void main() {
     ..smsAllowed = (() => license.isLicensed)
     ..start();
   final school = SchoolController(state, attendance: attendance);
+  final photoBg = PhotoBackgroundController(state);
   runApp(LicenseScope(
     manager: license,
     child: AppScope(
       state: state,
       child: AttendanceScope(
         controller: attendance,
-        child: SchoolScope(controller: school, child: const CarteScolaireApp()),
+        child: SchoolScope(
+          controller: school,
+          child: PhotoBackgroundScope(controller: photoBg, child: const CarteScolaireApp()),
+        ),
       ),
     ),
   ));

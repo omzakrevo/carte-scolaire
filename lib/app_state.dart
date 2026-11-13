@@ -319,11 +319,53 @@ class AppState extends ChangeNotifier {
     move(1);
   }
 
+  /// Appelé après chaque nouvelle photo (changement automatique du fond).
+  void Function(Student)? onNewPhoto;
+
   void setPhoto(Student s, Uint8List? bytes, {Uint8List? original, bool keepOriginal = false}) {
     s.photo = bytes;
     if (!keepOriginal) s.original = bytes == null ? null : original;
+    // Nouvelle photo : l'ancien détourage ne correspond plus.
+    s
+      ..raw = null
+      ..mask = null
+      ..photoBg = null;
     s.photoVersion++;
     if (bytes == null) s.validated = false;
+    changed();
+    if (bytes != null) onNewPhoto?.call(s);
+  }
+
+  /// Pour les tests : photo posée sans déclencher le traitement automatique.
+  @visibleForTesting
+  void photosWithoutHook(Student s, Uint8List bytes) {
+    final hook = onNewPhoto;
+    onNewPhoto = null;
+    setPhoto(s, bytes);
+    onNewPhoto = hook;
+  }
+
+  /// Photo dont le fond a été remplacé : [raw] garde la photo d'avant, [mask] le détourage.
+  void setPhotoBackground(Student s, Uint8List photo, {required Uint8List raw, required Uint8List mask, required int color}) {
+    s
+      ..photo = photo
+      ..raw = raw
+      ..mask = mask
+      ..photoBg = color;
+    s.photoVersion++;
+    changed();
+  }
+
+  /// Remet la photo avec son fond d'origine.
+  void restorePhotoBackground(Student s) {
+    final r = s.raw;
+    if (r == null) return;
+    s
+      ..photo = r
+      ..raw = null
+      ..mask = null
+      ..photoBg = null;
+    s.photoVersion++;
     changed();
   }
 

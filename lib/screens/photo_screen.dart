@@ -10,6 +10,7 @@ import '../app_state.dart';
 import '../designs/card_designs.dart';
 import '../main.dart' show isDesktop;
 import '../models.dart';
+import '../services/background_removal.dart';
 import '../services/license.dart';
 import '../services/phone_bridge.dart';
 import '../services/photo_utils.dart';
@@ -351,6 +352,15 @@ class _PhotoScreenState extends State<PhotoScreen> {
               ),
             ),
             if (_working) const CircularProgressIndicator(),
+            if (PhotoBackgroundScope.maybeOf(context)?.isProcessing(s) ?? false)
+              Positioned(
+                bottom: 8,
+                child: Chip(
+                  avatar: const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  label: const Text('Changement du fond…'),
+                  backgroundColor: scheme.surface,
+                ),
+              ),
             if (s.validated)
               Positioned(
                 top: 8,
@@ -366,6 +376,8 @@ class _PhotoScreenState extends State<PhotoScreen> {
       ),
       const SizedBox(height: 16),
       actions,
+      const SizedBox(height: 12),
+      _PhotoBackgroundBar(student: s),
       const SizedBox(height: 16),
       Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 8, children: [
         if (s.validated)
@@ -568,6 +580,131 @@ class _BridgeDialogState extends State<_BridgeDialog> {
         ),
       ),
       actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer'))],
+    );
+  }
+}
+
+
+/// Fond des photos : couleur appliquée automatiquement après chaque photo.
+class _PhotoBackgroundBar extends StatelessWidget {
+  final Student student;
+  const _PhotoBackgroundBar({required this.student});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = PhotoBackgroundScope.maybeOf(context);
+    if (bg == null) return const SizedBox();
+    final state = AppScope.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final color = bg.color;
+    final s = student;
+    final todo = bg.enabled ? bg.todo.length : 0;
+    final processing = bg.isProcessing(s);
+
+    Widget swatch(String label, int? c) {
+      final sel = color == c;
+      return ChoiceChip(
+        selected: sel,
+        showCheckmark: false,
+        avatar: c == null
+            ? const Icon(Icons.image_outlined, size: 18)
+            : Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: Color(c),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black26),
+                ),
+              ),
+        label: Text(label),
+        onSelected: (_) => bg.setColor(c),
+      );
+    }
+
+    final custom = color != null && !photoBackgroundColors.any((e) => e.$2 == color);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.auto_fix_high, color: scheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Fond des photos',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              if (bg.busy)
+                Text('${bg.pending} en cours…', style: Theme.of(context).textTheme.bodySmall),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              !ModnetSegmenter.supported
+                  ? 'Non disponible sur cet appareil.'
+                  : color == null
+                      ? 'Choisissez une couleur : le fond de chaque photo sera remplacé automatiquement, sans Internet.'
+                      : 'Chaque nouvelle photo passe automatiquement en fond ${photoBackgroundName(color).toLowerCase()} '
+                          '(quelques secondes, en arrière-plan).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              swatch('Fond d\'origine', null),
+              for (final (n, c) in photoBackgroundColors) swatch(n, c),
+              ActionChip(
+                avatar: custom
+                    ? Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(color: Color(color), shape: BoxShape.circle),
+                      )
+                    : const Icon(Icons.colorize, size: 18),
+                label: Text(custom ? 'Personnalisée' : 'Autre…'),
+                side: custom ? BorderSide(color: scheme.primary, width: 2) : null,
+                onPressed: () async {
+                  final c = await pickColor(context, color ?? 0xFF1565C0);
+                  if (c != null) await bg.setColor(c);
+                },
+              ),
+            ]),
+            if (bg.busy) ...[
+              const SizedBox(height: 8),
+              const LinearProgressIndicator(),
+            ],
+            if (bg.lastError != null && !bg.busy) ...[
+              const SizedBox(height: 6),
+              Text(bg.lastError!, style: TextStyle(color: scheme.error, fontSize: 12)),
+            ],
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, runSpacing: 4, children: [
+              if (todo > 0 && !bg.busy)
+                TextButton.icon(
+                  onPressed: bg.applyToAll,
+                  icon: const Icon(Icons.done_all),
+                  label: Text('Appliquer aux $todo photo(s) déjà prise(s)'),
+                ),
+              if (s.photo != null && color != null && s.photoBg != color && !processing)
+                TextButton.icon(
+                  onPressed: () => bg.enqueue(s),
+                  icon: const Icon(Icons.format_color_fill),
+                  label: const Text('Changer le fond de cette photo'),
+                ),
+              if (s.raw != null && !processing)
+                TextButton.icon(
+                  onPressed: () => state.restorePhotoBackground(s),
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Remettre le fond d\'origine'),
+                ),
+            ]),
+          ]),
+        ),
+      ),
     );
   }
 }

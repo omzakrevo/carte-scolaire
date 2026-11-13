@@ -364,6 +364,8 @@ Future<Student?> editStudent(BuildContext context, Student? s,
       : (Student.fromJson(s.toJson())
         ..photo = s.photo
         ..original = s.original
+        ..raw = s.raw
+        ..mask = s.mask
         ..photoVersion = s.photoVersion);
   final form = GlobalKey<FormState>();
   // Champs affichés sur la carte d'abord ; les autres restent accessibles plus bas.

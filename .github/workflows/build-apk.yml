@@ -36,13 +36,16 @@ jobs:
       - run: flutter pub get
       - name: Tests
         run: flutter test
-      - name: Compilation de l'APK
-        run: flutter build apk --release
-      - run: cp build/app/outputs/flutter-apk/app-release.apk carte-scolaire.apk
+      - name: Compilation des APK (un par type de téléphone, plus légers)
+        run: flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
+      - run: |
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk carte-scolaire.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk carte-scolaire-ancien-telephone.apk
+          ls -la carte-scolaire*.apk
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: carte-scolaire.apk
+          path: carte-scolaire*.apk
 
   windows:
     name: Windows
@@ -92,11 +95,12 @@ jobs:
         run: |
           VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
           TAG="v${VERSION}-${{ github.run_number }}"
-          gh release create "$TAG" out/carte-scolaire.apk out/carte-scolaire-windows-installation.exe out/carte-scolaire-windows-portable.zip \
+          gh release create "$TAG" out/carte-scolaire.apk out/carte-scolaire-ancien-telephone.apk out/carte-scolaire-windows-installation.exe out/carte-scolaire-windows-portable.zip \
             --title "Carte Scolaire ${VERSION} (build ${{ github.run_number }})" \
             --notes "Compilé automatiquement à partir du commit ${GITHUB_SHA::7}.
 
-          - **carte-scolaire.apk** : Android, à ouvrir sur le téléphone pour l'installer.
+          - **carte-scolaire.apk** : Android (téléphones récents, 64 bits), à ouvrir sur le téléphone pour l'installer.
+          - **carte-scolaire-ancien-telephone.apk** : Android pour les anciens téléphones 32 bits, si le premier ne s'installe pas.
           - **carte-scolaire-windows-installation.exe** : installateur Windows 10/11 (64 bits).
           - **carte-scolaire-windows-portable.zip** : version Windows sans installation, à décompresser puis lancer carte_scolaire.exe." \
             --latest
