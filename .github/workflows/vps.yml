@@ -141,6 +141,7 @@ jobs:
           git add licenses/registry.json
           git diff --cached --quiet && echo "Registre déjà à jour." || { git commit -m "Registre : serveur multi-appareil"; git push; }
 
+      # Les fichiers du compte restent dans le stockage (supprimables depuis Supabase Studio > Storage).
       - name: Supprimer un compte multi-appareil
         if: inputs.action == 'supprimer-compte'
         env:
@@ -149,7 +150,5 @@ jobs:
           [[ "$EMAIL" =~ ^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$ ]] || { echo "Adresse invalide"; exit 1; }
           DB='${{ steps.find.outputs.db }}'
           ssh vps "docker exec -i $DB psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At" <<EOF
-          delete from storage.objects where bucket_id = 'carte-scolaire'
-            and owner_id = (select id::text from auth.users where email = '$EMAIL');
           delete from auth.users where email = '$EMAIL' returning 'compte supprimé : ' || email;
           EOF
