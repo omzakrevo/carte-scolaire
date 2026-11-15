@@ -32,12 +32,12 @@ void main() {
 
   test('entrée du modèle : taille multiple de 32, valeurs dans [-1, 1], ordre RGB par plans', () {
     final inp = prepareModelInput(samplePhoto());
-    expect((inp.width, inp.height), (384, 512));
+    expect((inp.width, inp.height), (320, 416));
     expect((inp.srcWidth, inp.srcHeight), (300, 400));
-    expect(inp.data.length, 3 * 384 * 512);
+    expect(inp.data.length, 3 * 320 * 416);
     // Coin en haut à gauche : fond vert (40, 200, 40).
     expect(inp.data[0], closeTo((40 - 127.5) / 127.5, 0.05));
-    expect(inp.data[384 * 512], closeTo((200 - 127.5) / 127.5, 0.05));
+    expect(inp.data[320 * 416], closeTo((200 - 127.5) / 127.5, 0.05));
   });
 
   test('sortie du modèle → masque PNG à la taille de la photo', () {
