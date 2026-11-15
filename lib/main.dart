@@ -29,6 +29,8 @@ void main() {
   final photoBg = PhotoBackgroundController(state);
   final sync = SyncController(
     licensed: () => license.isLicensed && license.license!.modules.contains(syncModule),
+    licenseCode: () => license.code,
+    server: () => (license.syncUrl, license.syncKey),
     lastEdit: () => state.lastEdit,
     beforeSync: () async {
       await state.flush();

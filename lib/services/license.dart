@@ -18,6 +18,12 @@ const _adminPublicKey = '9z6fiwSh9JJ+XGPnVLNmzzVsVMoDjZrj444y0RCO23g=';
 /// Registre public des licences (révocations), mis à jour depuis la page administrateur.
 const registryUrl = 'https://raw.githubusercontent.com/omzakrevo/carte-scolaire/main/licenses/registry.json';
 
+/// Serveur de l'option multi-appareil (Supabase auto-hébergé de l'éditeur). La clé publique
+/// (anon key) est publiée dans le registre par la page administrateur : les clients n'ont
+/// rien à saisir.
+const defaultSyncUrl = 'https://vps-ef39f3a3.vps.ovh.ca';
+const defaultSyncKey = '';
+
 /// Formules de licence.
 const licensePlans = <String, String>{
   'M1': '1 mois',
@@ -78,6 +84,10 @@ class LicenseManager extends ChangeNotifier {
   Set<String> revoked = {};
   DateTime? registryChecked;
   bool welcomed = false;
+
+  /// Serveur multi-appareil (mis à jour depuis le registre).
+  String syncUrl = defaultSyncUrl;
+  String syncKey = defaultSyncKey;
 
   bool get hasPassword => _hash != null;
 
@@ -142,6 +152,11 @@ class LicenseManager extends ChangeNotifier {
         revoked = {...(j['revoked'] as List? ?? []).map((e) => e.toString())};
         registryChecked = DateTime.tryParse(j['registryChecked'] ?? '');
         welcomed = j['welcomed'] ?? false;
+        final srv = j['syncServer'];
+        if (srv is Map) {
+          syncUrl = '${srv['url'] ?? defaultSyncUrl}';
+          syncKey = '${srv['key'] ?? defaultSyncKey}';
+        }
       }
       if (deviceId.isEmpty) deviceId = _newDeviceId();
       if (code != null) license = await _verify(code!);
@@ -173,6 +188,7 @@ class LicenseManager extends ChangeNotifier {
       'revoked': revoked.toList(),
       'registryChecked': registryChecked?.toIso8601String(),
       'welcomed': welcomed,
+      'syncServer': {'url': syncUrl, 'key': syncKey},
     }));
     await tmp.rename(f.path);
   }
@@ -329,6 +345,11 @@ class LicenseManager extends ChangeNotifier {
       if (r.statusCode != 200) return null;
       final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
       revoked = {...(j['revoked'] as List? ?? []).map((e) => e.toString())};
+      final srv = j['sync'];
+      if (srv is Map && '${srv['key'] ?? ''}'.isNotEmpty) {
+        syncUrl = '${srv['url'] ?? defaultSyncUrl}';
+        syncKey = '${srv['key']}';
+      }
       final upgraded = await applyUpgrades(j['upgrades']);
       registryChecked = DateTime.now();
       final now = DateTime.now();

@@ -118,6 +118,18 @@ class SupabaseBackend implements SyncBackend {
     onSession?.call(session!);
   }
 
+  /// Appel d'une fonction SQL (RPC). [anon] : sans être connecté.
+  Future<dynamic> rpc(String name, Map<String, dynamic> params, {bool anon = false}) async {
+    final r = await client.post(
+      Uri.parse('$url/rest/v1/rpc/$name'),
+      headers: anon ? _anon : await _auth({'content-type': 'application/json'}),
+      body: jsonEncode(params),
+    );
+    if (r.statusCode >= 300) throw SyncAuthError(_message(r));
+    final body = utf8.decode(r.bodyBytes);
+    return body.isEmpty ? null : jsonDecode(body);
+  }
+
   /// Le compte a-t-il l'option multi-appareil (activée par l'administrateur sur le serveur) ?
   Future<bool> hasAccess() async {
     final r = await client.get(Uri.parse('$url/rest/v1/cs_sync_access?select=active'), headers: await _auth());

@@ -70,13 +70,19 @@ Si les photos ont été prises à la suite, dans l'ordre de la liste : **Photos 
 
 ## Multi-appareil (option payante)
 
-Le même compte sur l'ordinateur et le téléphone : projets, fiches, photos, notes, bulletins, emplois du temps et présences sont synchronisés. Chaque appareil garde **sa propre licence** ; l'option « Multi-appareil » doit être cochée dans la licence de chacun (page administrateur).
+Le même compte sur l'ordinateur et le téléphone : projets, fiches, photos, notes, bulletins, emplois du temps et présences sont synchronisés. Chaque appareil garde **sa propre licence** ; l'option « Multi-appareil » doit être cochée dans la licence de chacun (page administrateur, création ou **Faire évoluer**).
 
-- Les données vont sur **votre serveur Supabase** (auto-hébergé sur votre VPS), jamais ailleurs. Hors connexion, on continue à travailler ; la synchronisation reprend ensuite.
-- Préparation du serveur (une fois) : exécutez [`docs/sync/supabase_setup.sql`](docs/sync/supabase_setup.sql) dans Supabase Studio. Il crée la table des fichiers, le compartiment de stockage privé `carte-scolaire` et la liste des comptes autorisés, avec des règles d'accès : chaque compte ne voit que ses données, et seulement si l'option est active.
-- Dans l'application : **Projets > Multi-appareil**, saisissez l'adresse du serveur, la clé publique (anon key), puis l'e-mail et le mot de passe du compte (création possible depuis l'application). Utilisez le même compte sur chaque appareil.
-- Activer un client payant : `insert into public.cs_sync_access (user_id, email) select id, email from auth.users where email = 'client@exemple.com';` (date de fin possible avec `expires_at`, suspension avec `active = false`).
-- Synchronisation au démarrage, toutes les 10 minutes quand on ne saisit rien, et avec le bouton **Synchroniser maintenant**. Un fichier modifié des deux côtés garde la version la plus récente ; une suppression ne l'emporte jamais sur une modification.
+**Pour le client, rien à remplir :**
+- Premier appareil : **Projets > Multi-appareil > Activer sur cet appareil**. Le compte est créé automatiquement (identifiants générés et gardés sur l'appareil).
+- Autre appareil : sur le premier, **Ajouter un autre appareil** affiche un QR code et un code (ABCD-EFG-HJK, valable 15 minutes, une seule fois). Sur le nouvel appareil : **Scanner le QR code** (téléphone) ou taper le code (ordinateur).
+- L'accès au serveur s'ouvre tout seul avec la licence de l'appareil : le serveur vérifie la signature de la licence et la présence du module « Multi-appareil », jusqu'à sa date de fin.
+- Synchronisation au démarrage, toutes les 10 minutes quand on ne saisit rien, et avec **Synchroniser maintenant**. Un fichier modifié des deux côtés garde la version la plus récente ; une suppression ne l'emporte jamais sur une modification. Hors connexion, on continue à travailler.
+
+**Pour l'éditeur (une seule fois) :**
+1. Sur le Supabase du VPS, exécuter [`docs/sync/supabase_setup.sql`](docs/sync/supabase_setup.sql) dans Supabase Studio > SQL Editor (tables, stockage privé `carte-scolaire`, règles d'accès, activation par licence via pgsodium, codes d'ajout d'appareil chiffrés).
+2. Dans le fichier `.env` de Supabase : `ENABLE_EMAIL_AUTOCONFIRM=true` (les comptes sont créés par l'application, sans e-mail à confirmer), puis redémarrer.
+3. Page administrateur > **Registre GitHub** > **Serveur multi-appareil** : l'adresse est préremplie, coller la clé publique (`ANON_KEY` du `.env`) puis **Enregistrer et publier**. Toutes les applications reçoivent le serveur automatiquement.
+- Bloquer un compte : `update public.cs_sync_access set blocked = true where user_id = '…';`
 
 ## Deux espaces : Établissements et Entreprises
 

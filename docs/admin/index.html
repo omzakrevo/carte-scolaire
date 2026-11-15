@@ -178,6 +178,14 @@
       <input type="password" id="token" placeholder="github_pat_…">
       <div class="row"><button id="saveToken" class="ghost">Enregistrer le jeton (chiffré)</button><button id="publish">Publier le registre</button></div>
       <div id="ghOut"></div>
+      <h2 style="margin-top:22px">Serveur multi-appareil</h2>
+      <p class="muted">Publié dans le registre : les applications le reçoivent toutes seules, les clients n'ont rien à saisir. La clé publique (anon key) se trouve dans le fichier <code>.env</code> de Supabase sur le VPS (<code>ANON_KEY</code>) ; elle n'est pas secrète.</p>
+      <div class="grid">
+        <div><label for="syncUrl">Adresse du serveur Supabase</label><input id="syncUrl" placeholder="https://vps-ef39f3a3.vps.ovh.ca"></div>
+        <div><label for="syncKey">Clé publique (anon key)</label><input id="syncKey" placeholder="eyJhbGciOi…"></div>
+      </div>
+      <div class="row"><button id="saveSync">Enregistrer et publier</button></div>
+      <div id="syncOut"></div>
     </section>
 
     <section class="card" data-panel="backup" hidden>
@@ -286,7 +294,7 @@ $('resetAll').addEventListener('click', () => {
   $('resetAll').dataset.armed = '1'; $('resetAll').textContent = 'Cliquez encore pour effacer la clé de cet ordinateur';
 });
 
-function enter() { show('app'); if (session.token) $('token').value = session.token; render(); }
+function enter() { show('app'); if (session.token) $('token').value = session.token; fillSync(); render(); }
 
 // ---------- Signature ----------
 function sign(payload) {
@@ -439,6 +447,24 @@ $('saveToken').addEventListener('click', async () => {
 });
 $('publish').addEventListener('click', () => publishRegistry(false));
 
+// ---------- Serveur multi-appareil ----------
+const DEFAULT_SYNC_URL = 'https://vps-ef39f3a3.vps.ovh.ca';
+function syncServer() {
+  const c = store.get('syncServer') || {};
+  return { url: c.url || DEFAULT_SYNC_URL, key: c.key || '' };
+}
+function fillSync() { const c = syncServer(); $('syncUrl').value = c.url; $('syncKey').value = c.key; }
+$('saveSync').addEventListener('click', async () => {
+  let url = $('syncUrl').value.trim().replace(/\/+$/, '') || DEFAULT_SYNC_URL;
+  if (!/^https?:\/\//.test(url)) url = 'https://' + url;
+  const key = $('syncKey').value.trim();
+  if (key && key.split('.').length !== 3) return alertMsg('syncOut', 'err', 'La clé publique est un long texte en trois parties séparées par des points (eyJ…).');
+  store.set('syncServer', { url, key });
+  if (!session.token && !$('token').value.trim()) return alertMsg('syncOut', 'info', 'Enregistré. Ajoutez le jeton GitHub puis publiez le registre.');
+  await publishRegistry(false);
+  alertMsg('syncOut', 'ok', 'Serveur publié : les applications le prendront à leur prochaine connexion.');
+});
+
 /// Licences améliorées : dernier code de chaque appareil, appliqué tout seul par l'application.
 function upgradeCodes() {
   const out = {};
@@ -461,6 +487,7 @@ async function publishRegistry(auto) {
       updated: new Date().toISOString(),
       revoked: licenses.filter(l => l.revoked).map(l => l.id),
       upgrades: upgradeCodes(),
+      sync: syncServer(),
       licenses: licenses.map(l => ({ id: l.id, device: l.device, plan: l.plan, expires: l.expires, issued: l.issued, status: status(l) })),
     };
     const api = `https://api.github.com/repos/${REPO}/contents/${REG_PATH}`;

@@ -65,7 +65,8 @@ void main() {
       await tester.pumpWidget(host(state, const Scaffold(body: SyncCard()), sync: sync));
       await tester.pumpWidget(host(state, const SyncScreen(), sync: sync));
       await tester.pumpAndSettle();
-      expect(find.text('Se connecter'), findsOneWidget);
+      expect(find.text('Activer sur cet appareil'), findsOneWidget);
+      expect(find.text('Rejoindre'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
