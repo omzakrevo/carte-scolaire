@@ -7,6 +7,7 @@ import '../app_state.dart';
 import '../card_kinds.dart';
 import '../models.dart';
 import '../services/student_import.dart';
+import 'sheet_import_screen.dart';
 import '../widgets/common.dart';
 
 class StudentsScreen extends StatefulWidget {
@@ -178,6 +179,11 @@ class _StudentsScreenState extends State<StudentsScreen> {
         label: const Text('Importer Excel / CSV'),
       ),
       OutlinedButton.icon(
+        onPressed: () => SheetImportScreen.open(context),
+        icon: const Icon(Icons.document_scanner_outlined),
+        label: const Text('Photo d\'une liste'),
+      ),
+      OutlinedButton.icon(
         onPressed: () async {
           final s = await editStudent(context, null, classes: classes, defaultClass: _class, template: state.template);
           if (s != null) state.upsertStudent(s);
@@ -334,7 +340,7 @@ class _Empty extends StatelessWidget {
             Text('Liste vide : $people', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 6),
             const Text(
-              'Importez la liste depuis Excel (colonnes Nom, Prénom, Classe ou Service…) ou saisissez les fiches une par une.',
+              'Importez la liste depuis Excel (colonnes Nom, Prénom, Classe ou Service…), photographiez une feuille de noms ou saisissez les fiches une par une.',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -342,6 +348,11 @@ class _Empty extends StatelessWidget {
                 onPressed: onImport,
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Importer un fichier Excel')),
+            const SizedBox(height: 8),
+            FilledButton.tonalIcon(
+                onPressed: () => SheetImportScreen.open(context),
+                icon: const Icon(Icons.document_scanner_outlined),
+                label: const Text('Photographier une feuille de noms')),
             const SizedBox(height: 8),
             OutlinedButton.icon(
                 onPressed: onTemplate,

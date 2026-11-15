@@ -14,17 +14,32 @@ import 'widgets/org_info_form.dart';
 import 'screens/projects_screen.dart';
 import 'screens/security_screens.dart';
 import 'services/license.dart';
+import 'sync/sync_controller.dart';
 import 'screens/students_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final state = AppState()..load();
-  final license = LicenseManager()..load();
+  final state = AppState();
+  final license = LicenseManager();
+  final loading = Future.wait([state.load(), license.load()]);
   final attendance = AttendanceController(state)
     ..smsAllowed = (() => license.isLicensed)
     ..start();
   final school = SchoolController(state, attendance: attendance);
   final photoBg = PhotoBackgroundController(state);
+  final sync = SyncController(
+    licensed: () => license.isLicensed && license.license!.modules.contains(syncModule),
+    lastEdit: () => state.lastEdit,
+    beforeSync: () async {
+      await state.flush();
+      await school.flush();
+      await attendance.flush();
+    },
+    afterSync: (r) async {
+      if (r.changedLocally.isNotEmpty) await state.reloadFromDisk();
+    },
+  );
+  loading.then((_) => sync.load()).then((_) => sync.maybeAutoSync()).catchError((_) {});
   runApp(LicenseScope(
     manager: license,
     child: AppScope(
@@ -33,7 +48,10 @@ void main() {
         controller: attendance,
         child: SchoolScope(
           controller: school,
-          child: PhotoBackgroundScope(controller: photoBg, child: const CarteScolaireApp()),
+          child: PhotoBackgroundScope(
+            controller: photoBg,
+            child: SyncScope(controller: sync, child: const CarteScolaireApp()),
+          ),
         ),
       ),
     ),

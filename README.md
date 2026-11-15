@@ -50,6 +50,34 @@ Dans l'écran **Photos**, choisissez une couleur de fond (bleu, bleu clair, blan
 
 Pour un bon résultat : visage et épaules bien visibles, personne nettement détachée du fond.
 
+## Liste des noms depuis une photo
+
+Dans **Liste** (élèves, employés, membres), **Photo d'une liste** : photographiez la feuille de noms (ou choisissez une image), elle est transformée en tableau comme dans Excel :
+
+- **Lecture hors ligne** (par défaut) : ML Kit sur Android, le moteur OCR intégré à Windows sur PC. La photo ne quitte pas l'appareil. Idéal pour les listes imprimées.
+- **Lecture IA** (bouton à part) : la photo est envoyée à l'API Claude, qui lit aussi l'écriture à la main. Il faut Internet et une clé API (payée à l'usage), saisie une fois et gardée sur l'appareil.
+- Le tableau est modifiable : chaque colonne reçoit son rôle (Nom et prénoms, Nom, Prénom, Classe, Date et lieu de naissance, Sexe, Contact, Matricule…), deviné d'après les titres ou le contenu ; on corrige les cases, on décoche les lignes inutiles, puis **Ajouter à la liste**.
+- On peut aussi **coller du texte** (copié d'un document ou d'un tableau).
+
+## Photos en lot (dossier de photos)
+
+Si les photos ont été prises à la suite, dans l'ordre de la liste : **Photos > Photos en lot**, puis **Choisir un dossier** (PC) ou **Choisir les photos** (téléphone, tout sélectionner).
+
+- Les photos sont triées par **heure de prise** (données EXIF de l'appareil photo ; sinon l'heure dans le nom du fichier, puis la date du fichier) ou par nom de fichier.
+- Elles sont attribuées aux fiches dans l'ordre de la liste (toute la liste, une classe, ou seulement les fiches sans photo).
+- Correction à la main : échanger deux photos, **décaler** quand une personne n'a pas été photographiée, **retirer** une photo ratée ou en double (les suivantes remontent), donner une photo restante à une fiche.
+- Chaque photo est recadrée au format identité et, si la couleur de fond est choisie, son fond est changé automatiquement.
+
+## Multi-appareil (option payante)
+
+Le même compte sur l'ordinateur et le téléphone : projets, fiches, photos, notes, bulletins, emplois du temps et présences sont synchronisés. Chaque appareil garde **sa propre licence** ; l'option « Multi-appareil » doit être cochée dans la licence de chacun (page administrateur).
+
+- Les données vont sur **votre serveur Supabase** (auto-hébergé sur votre VPS), jamais ailleurs. Hors connexion, on continue à travailler ; la synchronisation reprend ensuite.
+- Préparation du serveur (une fois) : exécutez [`docs/sync/supabase_setup.sql`](docs/sync/supabase_setup.sql) dans Supabase Studio. Il crée la table des fichiers, le compartiment de stockage privé `carte-scolaire` et la liste des comptes autorisés, avec des règles d'accès : chaque compte ne voit que ses données, et seulement si l'option est active.
+- Dans l'application : **Projets > Multi-appareil**, saisissez l'adresse du serveur, la clé publique (anon key), puis l'e-mail et le mot de passe du compte (création possible depuis l'application). Utilisez le même compte sur chaque appareil.
+- Activer un client payant : `insert into public.cs_sync_access (user_id, email) select id, email from auth.users where email = 'client@exemple.com';` (date de fin possible avec `expires_at`, suspension avec `active = false`).
+- Synchronisation au démarrage, toutes les 10 minutes quand on ne saisit rien, et avec le bouton **Synchroniser maintenant**. Un fichier modifié des deux côtés garde la version la plus récente ; une suppression ne l'emporte jamais sur une modification.
+
 ## Deux espaces : Établissements et Entreprises
 
 L'écran **Projets** sépare les **Établissements** (écoles, collèges, lycées) et les **Entreprises** (entreprises, ONG, associations, événements). Chaque espace a ses projets et ses onglets :

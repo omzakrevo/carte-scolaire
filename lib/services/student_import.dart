@@ -136,7 +136,7 @@ String _norm(String s) {
 }
 
 /// Associe un titre de colonne à un champ de l'élève.
-String? _fieldFor(String header) {
+String? studentFieldFor(String header) {
   final h = _norm(header);
   if (h.isEmpty) return null;
   bool has(String k) => h.contains(k);
@@ -186,7 +186,8 @@ String? _fieldFor(String header) {
   return null;
 }
 
-const _labels = {
+/// Nom affiché de chaque champ d'une fiche.
+const studentFieldLabels = {
   'nomComplet': 'Nom et prénom(s)',
   'nom': 'Nom',
   'prenom': 'Prénom(s)',
@@ -209,7 +210,7 @@ ImportResult _mapRows(List<List<String>> rows) {
   for (var i = 0; i < rows.length && i < 15; i++) {
     final m = <int, String>{};
     for (var c = 0; c < rows[i].length; c++) {
-      final f = _fieldFor(rows[i][c]);
+      final f = studentFieldFor(rows[i][c]);
       if (f != null && !m.containsValue(f)) m[c] = f;
     }
     if (m.values.any((f) => f == 'nom' || f == 'nomComplet') || (m.length >= 2 && m.containsValue('matricule'))) {
@@ -230,45 +231,64 @@ ImportResult _mapRows(List<List<String>> rows) {
     if (r.every((c) => c.trim().isEmpty)) continue;
     final s = Student();
     columns.forEach((col, field) {
-      if (col >= r.length) return;
-      final v = r[col].trim();
-      switch (field) {
-        case 'nomComplet':
-          final parts = v.split(RegExp(r'\s+'));
-          s.nom = parts.first;
-          s.prenom = parts.skip(1).join(' ');
-        case 'nom':
-          s.nom = v;
-        case 'prenom':
-          s.prenom = v;
-        case 'matricule':
-          s.matricule = v;
-        case 'classe':
-          s.classe = v;
-        case 'dateNaissance':
-          s.dateNaissance = _fixDate(v);
-        case 'lieuNaissance':
-          s.lieuNaissance = v;
-        case 'sexe':
-          s.sexe = v.isEmpty ? '' : v.substring(0, 1).toUpperCase();
-        case 'contact':
-          s.contact = v;
-        case 'service':
-          s.service = v;
-        case 'email':
-          s.email = v;
-        case 'adresse':
-          s.adresse = v;
-      }
+      if (col < r.length) applyStudentField(s, field, r[col]);
     });
     if (s.nom.isEmpty && s.prenom.isEmpty && s.matricule.isEmpty) continue;
     students.add(s);
   }
   return ImportResult(
     students,
-    columns.values.map((f) => _labels[f] ?? f).toList(),
+    columns.values.map((f) => studentFieldLabels[f] ?? f).toList(),
     warnings,
   );
+}
+
+/// Range une valeur lue (Excel, feuille photographiée…) dans le bon champ de la fiche.
+void applyStudentField(Student s, String field, String raw) {
+  final v = raw.trim();
+  switch (field) {
+    case 'nomComplet':
+      final (nom, prenom) = splitFullName(v);
+      s.nom = nom;
+      s.prenom = prenom;
+    case 'nom':
+      s.nom = v;
+    case 'prenom':
+      s.prenom = v;
+    case 'matricule':
+      s.matricule = v;
+    case 'classe':
+      s.classe = v;
+    case 'dateNaissance':
+      s.dateNaissance = _fixDate(v);
+    case 'lieuNaissance':
+      s.lieuNaissance = v;
+    case 'sexe':
+      final l = RegExp(r'[A-Za-zÀ-ÿ]').firstMatch(v)?.group(0) ?? '';
+      s.sexe = l.toUpperCase();
+    case 'contact':
+      s.contact = v;
+    case 'service':
+      s.service = v;
+    case 'email':
+      s.email = v;
+    case 'adresse':
+      s.adresse = v;
+  }
+}
+
+/// « OUÉDRAOGO Awa Marie » → (OUÉDRAOGO, Awa Marie). Les mots en majuscules du début
+/// forment le nom ; sans majuscules, le premier mot est le nom.
+(String, String) splitFullName(String v) {
+  final parts = v.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+  if (parts.isEmpty) return ('', '');
+  bool upper(String w) => w.length > 1 && w == w.toUpperCase() && w != w.toLowerCase();
+  var n = 0;
+  while (n < parts.length && upper(parts[n])) {
+    n++;
+  }
+  if (n == 0 || n == parts.length) n = 1;
+  return (parts.take(n).join(' '), parts.skip(n).join(' '));
 }
 
 /// Les dates ISO (2015-03-12 ou 2015-03-12T00:00) deviennent 12/03/2015.

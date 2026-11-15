@@ -172,11 +172,15 @@ const attendanceModule = 'presence';
 /// Module de gestion scolaire : classes, matières, notes, moyennes et bulletins.
 const bulletinModule = 'bulletin';
 
+/// Option payante : même compte sur plusieurs appareils (données synchronisées).
+const syncModule = 'sync';
+
 /// Tous les modules, avec leur nom, pour la page administrateur et l'écran licence.
 final allModules = <String, String>{
   for (final k in cardKinds) k.id: k.name,
   attendanceModule: 'Pointage des présences',
   bulletinModule: 'Gestion scolaire et bulletins',
+  syncModule: 'Multi-appareil (synchronisation)',
 };
 
 // ---------------------------------------------------------------------------

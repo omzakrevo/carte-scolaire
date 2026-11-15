@@ -16,6 +16,7 @@ import '../services/phone_bridge.dart';
 import '../services/photo_utils.dart';
 import '../widgets/common.dart';
 import 'guided_camera_screen.dart';
+import 'photo_batch_screen.dart';
 import 'photo_crop_screen.dart';
 import 'students_screen.dart' show editStudent;
 
@@ -253,6 +254,11 @@ class _PhotoScreenState extends State<PhotoScreen> {
         onPressed: _working ? null : _pickFile,
         icon: const Icon(Icons.photo_library_outlined),
         label: Text(isDesktop ? 'Choisir un fichier' : 'Galerie'),
+      ),
+      OutlinedButton.icon(
+        onPressed: _working ? null : () => PhotoBatchScreen.open(context),
+        icon: const Icon(Icons.burst_mode_outlined),
+        label: const Text('Photos en lot'),
       ),
       if (s.photo != null)
         OutlinedButton.icon(

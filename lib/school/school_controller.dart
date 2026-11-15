@@ -38,8 +38,17 @@ class SchoolController extends ChangeNotifier {
     super.dispose();
   }
 
+  int _rev = 0;
+
   void _onApp() {
-    if (app.loaded && app.projectId != _projectId) {
+    if (!app.loaded) return;
+    if (app.diskRevision != _rev) {
+      // Fichiers reçus d'un autre appareil : on relit sans réécrire l'ancienne version.
+      _rev = app.diskRevision;
+      _saveTimer?.cancel();
+      _projectId = app.projectId;
+      _load();
+    } else if (app.projectId != _projectId) {
       flush();
       _projectId = app.projectId;
       _load();

@@ -70,7 +70,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Dernière modification (la synchronisation attend que la saisie soit finie).
+  DateTime lastEdit = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Augmente quand les fichiers ont été remplacés (synchronisation) : tout est relu.
+  int diskRevision = 0;
+
   void changed() {
+    lastEdit = DateTime.now();
     notifyListeners();
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 800), () => flush().catchError((_) {}));
@@ -132,6 +139,28 @@ class AppState extends ChangeNotifier {
     students.clear();
     currentIndex = 0;
     await flush();
+    notifyListeners();
+  }
+
+  /// Relit tout depuis le disque (après réception de données d'un autre appareil).
+  Future<void> reloadFromDisk() async {
+    _saveTimer?.cancel();
+    savedTemplates
+      ..clear()
+      ..addAll(await Storage.loadSavedTemplates());
+    final (list, current) = await Storage.loadIndex();
+    projects
+      ..clear()
+      ..addAll(list);
+    if (projects.isEmpty) {
+      final p = ProjectInfo(name: 'Mon premier projet', segment: browsing);
+      projects.add(p);
+    }
+    if (!projects.any((p) => p.id == projectId)) {
+      projectId = projects.any((p) => p.id == current) ? current! : projects.first.id;
+    }
+    await Storage.loadProject(this, projectId);
+    diskRevision++;
     notifyListeners();
   }
 

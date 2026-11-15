@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../card_kinds.dart';
 import '../models.dart';
 import '../services/license.dart';
+import '../sync/sync_screen.dart';
 import '../widgets/common.dart';
 
 String _date(DateTime d) {
@@ -166,6 +167,8 @@ class ProjectsScreen extends StatelessWidget {
                   : 'Un projet par établissement : modèle, élèves, photos, notes et présences sont gardés séparément.',
               style: Theme.of(context).textTheme.bodySmall),
         ]),
+        const SizedBox(height: 12),
+        const SyncCard(),
         const SizedBox(height: 16),
         if (list.isEmpty)
           Padding(
