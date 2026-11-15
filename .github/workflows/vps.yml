@@ -15,6 +15,11 @@ on:
           - verifier
           - installer-multi-appareil
           - publier-cle-publique
+          - supprimer-compte
+      email:
+        description: "Compte à supprimer (action supprimer-compte), ex. cs-xxxx@carte-scolaire.app"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -135,3 +140,16 @@ jobs:
           git config user.email "omzakrevo@users.noreply.github.com"
           git add licenses/registry.json
           git diff --cached --quiet && echo "Registre déjà à jour." || { git commit -m "Registre : serveur multi-appareil"; git push; }
+
+      - name: Supprimer un compte multi-appareil
+        if: inputs.action == 'supprimer-compte'
+        env:
+          EMAIL: ${{ inputs.email }}
+        run: |
+          [[ "$EMAIL" =~ ^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$ ]] || { echo "Adresse invalide"; exit 1; }
+          DB='${{ steps.find.outputs.db }}'
+          ssh vps "docker exec -i $DB psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At" <<EOF
+          delete from storage.objects where bucket_id = 'carte-scolaire'
+            and owner_id = (select id::text from auth.users where email = '$EMAIL');
+          delete from auth.users where email = '$EMAIL' returning 'compte supprimé : ' || email;
+          EOF
