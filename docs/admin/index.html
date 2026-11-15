@@ -493,7 +493,12 @@ async function publishRegistry(auto) {
     const api = `https://api.github.com/repos/${REPO}/contents/${REG_PATH}`;
     const headers = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' };
     const cur = await fetch(api + '?ref=main', { headers });
-    const sha = cur.ok ? (await cur.json()).sha : undefined;
+    const curJson = cur.ok ? await cur.json() : null;
+    const sha = curJson ? curJson.sha : undefined;
+    // Serveur multi-appareil : on garde celui déjà publié si rien n'est saisi ici.
+    if (!registry.sync.key && curJson) {
+      try { const old = JSON.parse(new TextDecoder().decode(unb64(curJson.content.replace(/\s/g, '')))); if (old.sync && old.sync.key) registry.sync = old.sync; } catch (e) {}
+    }
     const content = b64(enc.encode(JSON.stringify(registry, null, 2) + '\n'));
     const r = await fetch(api, { method: 'PUT', headers, body: JSON.stringify({ message: `Registre des licences : ${registry.licenses.length} licences, ${registry.revoked.length} révoquée(s)`, content, sha, branch: 'main' }) });
     if (!r.ok) throw new Error((await r.json()).message || r.status);

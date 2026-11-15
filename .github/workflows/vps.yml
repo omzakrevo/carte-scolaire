@@ -1,0 +1,119 @@
+name: Serveur VPS (multi-appareil)
+
+# Lancé à la main (onglet Actions) : prépare le Supabase auto-hébergé pour l'option multi-appareil.
+# La clé SSH est dans le secret VPS_SSH_KEY. Le dépôt est public : aucune valeur secrète
+# du serveur n'est affichée dans les journaux (seule la clé publique anon, faite pour être publiée).
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action"
+        type: choice
+        default: verifier
+        options:
+          - verifier
+          - installer-multi-appareil
+          - publier-cle-publique
+
+permissions:
+  contents: write
+
+env:
+  VPS_HOST: vps-ef39f3a3.vps.ovh.ca
+  VPS_USER: ubuntu
+
+jobs:
+  vps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clé SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 15 "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Sur le serveur : docker et lecture des fichiers, avec sudo seulement si nécessaire.
+          cat > helpers.sh <<'EOF'
+          if docker ps >/dev/null 2>&1; then D=docker; else D="sudo -n docker"; fi
+          if [ "$(id -u)" = 0 ]; then S=""; else S="sudo -n"; fi
+          rd() { cat "$1" 2>/dev/null || $S cat "$1"; }
+          EOF
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName $VPS_HOST
+            User $VPS_USER
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 20
+          EOF
+
+      - name: Repérer Supabase sur le serveur
+        id: find
+        run: |
+          { cat helpers.sh; cat <<'EOS'
+          ENV=$( (find / -xdev -path '*/supabase/docker/.env' 2>/dev/null; $S find / -xdev -path '*/supabase/docker/.env' 2>/dev/null) | grep -v node_modules | head -1)
+          [ -z "$ENV" ] && ENV=$( ($S find / -xdev -name .env -path '*supabase*' 2>/dev/null) | head -1)
+          DB=$($D ps --format '{{.Names}} {{.Image}}' | awk '$2 ~ /supabase\/postgres/ {print $1; exit}')
+          echo "env=$ENV"
+          echo "db=$DB"
+          EOS
+          } | ssh vps 'bash -s' > found.txt
+          cat found.txt
+          cat found.txt >> "$GITHUB_OUTPUT"
+
+      - name: Vérifier
+        run: |
+          ENV='${{ steps.find.outputs.env }}'; DB='${{ steps.find.outputs.db }}'
+          { cat helpers.sh; cat <<EOS
+          echo "Utilisateur : \$(whoami) · \$(uname -sr) · docker : \$D"
+          \$D ps --format 'table {{.Names}}\t{{.Status}}' | head -20
+          [ -n "$ENV" ] && rd '$ENV' | grep -E '^(ENABLE_EMAIL_AUTOCONFIRM|API_EXTERNAL_URL|SUPABASE_PUBLIC_URL)='
+          [ -n "$DB" ] && \$D exec $DB psql -U postgres -d postgres -Atc "select 'tables multi-appareil : ' || count(*) from information_schema.tables where table_name in ('cs_sync_files','cs_sync_access','cs_pairing'); select 'pgsodium disponible : ' || count(*) from pg_available_extensions where name='pgsodium';"
+          true
+          EOS
+          } | ssh vps 'bash -s'
+
+      - name: Installer le multi-appareil (SQL + confirmation automatique des comptes)
+        if: inputs.action == 'installer-multi-appareil'
+        run: |
+          ENV='${{ steps.find.outputs.env }}'; DB='${{ steps.find.outputs.db }}'
+          [ -n "$ENV" ] && [ -n "$DB" ] || { echo "Supabase introuvable sur le serveur"; exit 1; }
+          ssh vps "if docker ps >/dev/null 2>&1; then docker exec -i $DB psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q; else sudo -n docker exec -i $DB psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q; fi" < docs/sync/supabase_setup.sql
+          echo "Script SQL appliqué."
+          DIR=$(dirname "$ENV")
+          { cat helpers.sh; cat <<EOS
+          set -e
+          if rd '$ENV' | grep -q '^ENABLE_EMAIL_AUTOCONFIRM='; then
+            sed -i 's/^ENABLE_EMAIL_AUTOCONFIRM=.*/ENABLE_EMAIL_AUTOCONFIRM=true/' '$ENV' 2>/dev/null || \$S sed -i 's/^ENABLE_EMAIL_AUTOCONFIRM=.*/ENABLE_EMAIL_AUTOCONFIRM=true/' '$ENV'
+          else
+            echo 'ENABLE_EMAIL_AUTOCONFIRM=true' | (tee -a '$ENV' 2>/dev/null || \$S tee -a '$ENV') >/dev/null
+          fi
+          cd '$DIR' && \$D compose up -d >/dev/null 2>&1
+          echo "Confirmation automatique des comptes activée, Supabase relancé."
+          EOS
+          } | ssh vps 'bash -s'
+
+      - name: Publier la clé publique dans le registre
+        if: inputs.action == 'installer-multi-appareil' || inputs.action == 'publier-cle-publique'
+        run: |
+          ENV='${{ steps.find.outputs.env }}'
+          KEY=$({ cat helpers.sh; echo "rd '$ENV' | grep '^ANON_KEY='"; } | ssh vps 'bash -s' | head -1 | cut -d= -f2- | tr -d '"'"'"' \r')
+          [ -n "$KEY" ] || { echo "ANON_KEY introuvable"; exit 1; }
+          URL="https://$VPS_HOST"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/rest/v1/cs_sync_access?select=active")
+          echo "Test de la clé sur $URL : HTTP $code"
+          python3 - "$URL" "$KEY" <<'EOF'
+          import json, sys
+          p = 'licenses/registry.json'
+          j = json.load(open(p))
+          j['sync'] = {'url': sys.argv[1], 'key': sys.argv[2]}
+          json.dump(j, open(p, 'w'), indent=2, ensure_ascii=False)
+          open(p, 'a').write('\n')
+          EOF
+          git config user.name "omzakrevo"
+          git config user.email "omzakrevo@users.noreply.github.com"
+          git add licenses/registry.json
+          git diff --cached --quiet && echo "Registre déjà à jour." || { git commit -m "Registre : serveur multi-appareil"; git push; }
