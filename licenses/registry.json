@@ -2,5 +2,9 @@
   "version": 1,
   "updated": "2026-10-20T00:00:00Z",
   "revoked": [],
-  "licenses": []
+  "licenses": [],
+  "sync": {
+    "url": "https://vps-ef39f3a3.vps.ovh.ca",
+    "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkxNzYwNDE2LCJleHAiOjE5NDk0NDA0MTZ9.-vOE-tocfgxzGsgyJapk406z8f55e8merKLYIy9oq7w"
+  }
 }
