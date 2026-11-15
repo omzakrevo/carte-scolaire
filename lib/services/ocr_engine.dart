@@ -132,10 +132,12 @@ $stream = Await ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Wind
 $decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
 $bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
 $engine = $null
-foreach ($tag in @('fr-FR', 'fr')) {
-  $lang = New-Object Windows.Globalization.Language($tag)
-  if ([Windows.Media.Ocr.OcrEngine]::IsLanguageSupported($lang)) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($lang); break }
-}
+try {
+  foreach ($tag in @('fr-FR', 'fr')) {
+    $lang = [Windows.Globalization.Language]::new($tag)
+    if ([Windows.Media.Ocr.OcrEngine]::IsLanguageSupported($lang)) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($lang); break }
+  }
+} catch { $engine = $null }
 if ($engine -eq $null) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages() }
 if ($engine -eq $null) { [Console]::Error.WriteLine('NO_OCR_LANGUAGE'); exit 2 }
 $result = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
