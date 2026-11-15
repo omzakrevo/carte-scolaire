@@ -39,9 +39,10 @@ jobs:
           import os, re
           k = os.environ['RAW'].replace('\r', '').strip()
           m = re.search(r'-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----', k, re.S)
-          if m:
-              body = re.sub(r'\s+', '', m.group(2))
-              k = '-----BEGIN %s-----\n%s\n-----END %s-----' % (m.group(1), '\n'.join(body[i:i+70] for i in range(0, len(body), 70)), m.group(1))
+          # Sans les lignes BEGIN/END (copie partielle) : on les remet.
+          kind, body = (m.group(1), m.group(2)) if m else ('OPENSSH PRIVATE KEY', re.sub(r'-----[A-Z ]*-----', '', k))
+          body = re.sub(r'\s+', '', body)
+          k = '-----BEGIN %s-----\n%s\n-----END %s-----' % (kind, '\n'.join(body[i:i+70] for i in range(0, len(body), 70)), kind)
           print(k)
           PY
           chmod 600 ~/.ssh/id_ed25519
