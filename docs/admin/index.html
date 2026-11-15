@@ -54,6 +54,8 @@
   .pill.active { background: #e5f4ea; color: var(--green); }
   .pill.expired { background: #fff1e6; color: var(--amber); }
   .pill.revoked { background: #fde8e8; color: #9b1c1c; }
+  .pill.replaced { background: #eef0f3; color: #4b5563; }
+  #upgradeBox { background: #eef6ff; border: 1px solid #bcd7f5; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
   .muted { color: var(--soft); font-size: .9rem; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
@@ -110,13 +112,20 @@
     </div>
 
     <section class="card" data-panel="new">
-      <h2>Attribuer une licence</h2>
+      <h2 id="newTitle">Attribuer une licence</h2>
+      <div id="upgradeBox" hidden>
+        <b>Faire évoluer une licence existante</b>
+        <div id="upgradeInfo" class="muted"></div>
+        <div class="muted">Prolongez la durée et/ou cochez de nouveaux modules. Si le jeton GitHub est enregistré, l'application du client se met à jour toute seule (Internet), sans saisir de code.</div>
+        <button class="ghost small" id="cancelUpgrade" style="margin-top:6px">Annuler : nouvelle licence</button>
+      </div>
       <div class="grid">
         <div><label for="client">Établissement / client</label><input id="client" placeholder="C.P.E Maranatha"></div>
         <div><label for="phone">Téléphone</label><input id="phone" placeholder="70 00 00 00"></div>
         <div><label for="device">Identifiant de l'appareil</label><input id="device" placeholder="ABCDE-FGHJK" style="text-transform:uppercase;font-family:ui-monospace,monospace"></div>
         <div><label for="plan">Formule</label>
           <select id="plan">
+            <option value="KEEP" hidden>Garder la date de fin actuelle</option>
             <option value="M1">1 mois</option>
             <option value="M3">3 mois</option>
             <option value="M6">6 mois</option>
@@ -142,6 +151,7 @@
       </div>
       <div class="row"><button id="issue">Générer le code de licence</button></div>
       <div id="issueOut"></div>
+      <div id="issueOut2"></div>
     </section>
 
     <section class="card" data-panel="list" hidden>
@@ -224,6 +234,7 @@ function addMonths(d, n) { const r = new Date(d); r.setMonth(r.getMonth() + n); 
 function normDevice(v) { const s = v.toUpperCase().replace(/[^A-Z0-9]/g, ''); return s.length === 10 ? s.slice(0, 5) + '-' + s.slice(5) : null; }
 function status(l) {
   if (l.revoked) return 'revoked';
+  if (l.replacedBy) return 'replaced';
   if (l.expires !== '0' && l.expires < ymd(today())) return 'expired';
   return 'active';
 }
@@ -285,26 +296,71 @@ function sign(payload) {
 function newId() { const r = crypto.getRandomValues(new Uint8Array(3)); return 'L-' + ymd(today()) + '-' + Array.from(r, x => x.toString(16).padStart(2, '0')).join('').toUpperCase(); }
 
 $('plan').addEventListener('change', () => { $('customWrap').hidden = $('plan').value !== 'CUSTOM'; });
+
+// ---------- Faire évoluer une licence ----------
+let upgradeOf = null;
+function startUpgrade(l) {
+  upgradeOf = l;
+  $('client').value = l.client || ''; $('phone').value = l.phone || ''; $('device').value = l.device;
+  $('amount').value = ''; $('notes').value = '';
+  for (const i of document.querySelectorAll('#modules input')) i.checked = (l.modules || ['ecole', 'presence']).includes(i.value);
+  $('plan').querySelector('[value=KEEP]').hidden = false;
+  $('plan').value = 'KEEP'; $('customWrap').hidden = true;
+  $('upgradeBox').hidden = false;
+  $('upgradeInfo').textContent = `${l.client || l.device} · ${PLAN_LABEL[l.plan] || l.plan} · fin : ${l.expires === '0' ? 'jamais' : fr(l.expires)}. Une prolongation s'ajoute à la date de fin actuelle.`;
+  $('newTitle').textContent = 'Faire évoluer la licence';
+  $('issue').textContent = 'Générer la licence améliorée';
+  $('issueOut').innerHTML = '';
+  document.querySelector('[data-tab=new]').click();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function endUpgrade() {
+  upgradeOf = null;
+  $('plan').querySelector('[value=KEEP]').hidden = true;
+  if ($('plan').value === 'KEEP') $('plan').value = 'Y1';
+  $('upgradeBox').hidden = true;
+  $('newTitle').textContent = 'Attribuer une licence';
+  $('issue').textContent = 'Générer le code de licence';
+}
+$('cancelUpgrade').addEventListener('click', () => { endUpgrade(); for (const id of ['client', 'phone', 'device']) $(id).value = ''; });
 $('issue').addEventListener('click', () => {
+  $('issueOut2').innerHTML = '';
   const device = normDevice($('device').value);
   if (!device) return alertMsg('issueOut', 'err', 'Identifiant d\'appareil invalide : 10 caractères, comme ABCDE-FGHJK.');
   if (!$('client').value.trim()) return alertMsg('issueOut', 'err', 'Indiquez le nom de l\'établissement.');
   let plan = $('plan').value, expires;
   const t = today();
-  if (plan === 'LIFE') expires = '0';
+  const old = upgradeOf && upgradeOf.device === device ? upgradeOf : null;
+  // Prolongation : à partir de la date de fin actuelle si elle n'est pas dépassée.
+  let from = t;
+  if (old && old.expires !== '0' && old.expires >= ymd(t)) from = new Date(+old.expires.slice(0, 4), +old.expires.slice(4, 6) - 1, +old.expires.slice(6, 8));
+  if (plan === 'KEEP') {
+    if (!old) return alertMsg('issueOut', 'err', 'Choisissez une durée.');
+    plan = old.plan; expires = old.expires;
+    if (expires !== '0' && expires < ymd(t)) return alertMsg('issueOut', 'err', 'Cette licence a expiré : choisissez une prolongation.');
+  } else if (plan === 'LIFE') expires = '0';
   else if (plan === 'CUSTOM') {
     if (!$('custom').value) return alertMsg('issueOut', 'err', 'Choisissez la date de fin.');
     expires = $('custom').value.replace(/-/g, '');
-  } else expires = ymd(addMonths(t, { M1: 1, M3: 3, M6: 6, Y1: 12 }[plan]));
+  } else expires = ymd(addMonths(from, { M1: 1, M3: 3, M6: 6, Y1: 12 }[plan]));
   const modules = [...document.querySelectorAll('#modules input:checked')].map(i => i.value);
   if (!modules.length) return alertMsg('issueOut', 'err', 'Cochez au moins un module.');
   const id = newId();
   const issued = ymd(t);
   const code = sign(['CS1', id, device, plan, expires, issued, modules.join(',')].join('|'));
   const lic = { id, device, plan, expires, issued, code, modules, client: $('client').value.trim(), phone: $('phone').value.trim(), amount: $('amount').value.trim(), notes: $('notes').value.trim(), revoked: false };
+  if (old) { lic.replaces = old.id; old.replacedBy = id; }
   licenses.unshift(lic);
   store.set('licenses', licenses);
-  renderCode('issueOut', lic, `Bonjour, voici votre code de licence Carte Scolaire (${PLAN_LABEL[plan]}${expires !== '0' ? ', valable jusqu\'au ' + fr(expires) : ''}). Ouvrez l'application, touchez « Version d'essai » puis collez ce code :\n\n${code}`);
+  const until = expires !== '0' ? ', valable jusqu\'au ' + fr(expires) : '';
+  if (old) {
+    renderCode('issueOut', lic, `Bonjour, votre licence Carte Scolaire a été améliorée (${PLAN_LABEL[plan]}${until}). Elle se met à jour toute seule quand l'appareil est connecté à Internet (ou : Licence > Rechercher une mise à jour). Sinon, collez ce code dans l'écran Licence :\n\n${code}`);
+    endUpgrade();
+    if (session.token) publishRegistry(true);
+    else alertMsg('ghOut', 'info', 'Licence améliorée : publiez le registre pour que l\'application se mette à jour toute seule.');
+  } else {
+    renderCode('issueOut', lic, `Bonjour, voici votre code de licence Carte Scolaire (${PLAN_LABEL[plan]}${until}). Ouvrez l'application, touchez « Version d'essai » puis collez ce code :\n\n${code}`);
+  }
   render();
 });
 
@@ -340,7 +396,7 @@ $('doReset').addEventListener('click', () => {
 function render() {
   const now = ymd(today()), soon = ymd(addMonths(today(), 1));
   let a = 0, s = 0, e = 0, r = 0;
-  for (const l of licenses) { const st = status(l); if (st === 'active') { a++; if (l.expires !== '0' && l.expires <= soon) s++; } else if (st === 'expired') e++; else r++; }
+  for (const l of licenses) { const st = status(l); if (st === 'replaced') continue; if (st === 'active') { a++; if (l.expires !== '0' && l.expires <= soon) s++; } else if (st === 'expired') e++; else r++; }
   $('sActive').textContent = a; $('sSoon').textContent = s; $('sExpired').textContent = e; $('sRevoked').textContent = r;
   const q = $('search').value.toLowerCase();
   const tbody = $('rows'); tbody.innerHTML = '';
@@ -349,12 +405,16 @@ function render() {
     const st = status(l);
     const cell = (t, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = t; return td; };
     const c1 = cell(l.client); if (l.phone) { const p = document.createElement('div'); p.className = 'muted'; p.textContent = l.phone; c1.appendChild(p); }
-    const pill = document.createElement('span'); pill.className = 'pill ' + st; pill.textContent = { active: 'Active', expired: 'Expirée', revoked: 'Révoquée' }[st];
+    const pill = document.createElement('span'); pill.className = 'pill ' + st; pill.textContent = { active: 'Active', expired: 'Expirée', revoked: 'Révoquée', replaced: 'Remplacée' }[st];
     const c5 = document.createElement('td'); c5.appendChild(pill);
     const c6 = document.createElement('td'); c6.style.whiteSpace = 'nowrap';
     const bCopy = document.createElement('button'); bCopy.className = 'ghost small'; bCopy.textContent = 'Code'; bCopy.onclick = () => copyText(l.code, bCopy);
     const bRev = document.createElement('button'); bRev.className = (l.revoked ? 'ghost' : 'red') + ' small'; bRev.textContent = l.revoked ? 'Rétablir' : 'Révoquer';
     bRev.onclick = () => { l.revoked = !l.revoked; store.set('licenses', licenses); render(); };
+    const bUp = document.createElement('button'); bUp.className = 'small'; bUp.textContent = 'Faire évoluer';
+    bUp.title = 'Prolonger ou ajouter des modules sur le même appareil';
+    bUp.onclick = () => startUpgrade(l);
+    if (l.plan !== 'RESET' && !l.replacedBy && !l.revoked) c6.append(bUp, ' ');
     c6.append(bCopy, ' ', bRev);
     const MOD = { ecole: 'Scolaire', membre: 'Membre', pro: 'Pro', visiteur: 'Visiteur', visite: 'Visite', presence: 'Pointage', bulletin: 'Bulletins', sync: 'Multi-appareil' };
     const mods = (l.modules || (l.plan === 'RESET' ? [] : ['ecole', 'presence'])).map(m => MOD[m] || m).join(', ');
@@ -377,16 +437,30 @@ $('saveToken').addEventListener('click', async () => {
   store.set('vault', vault); session.token = $('token').value.trim();
   alertMsg('ghOut', 'ok', 'Jeton enregistré, chiffré avec votre mot de passe.');
 });
-$('publish').addEventListener('click', async () => {
-  const token = $('token').value.trim();
+$('publish').addEventListener('click', () => publishRegistry(false));
+
+/// Licences améliorées : dernier code de chaque appareil, appliqué tout seul par l'application.
+function upgradeCodes() {
+  const out = {};
+  for (const l of licenses) {
+    if (!l.replaces || l.revoked || l.replacedBy || l.plan === 'RESET') continue;
+    if (!out[l.device] || l.issued >= out[l.device].issued) out[l.device] = l;
+  }
+  return Object.fromEntries(Object.entries(out).map(([d, l]) => [d, l.code]));
+}
+
+async function publishRegistry(auto) {
+  const token = $('token').value.trim() || session.token;
   if (!token) return alertMsg('ghOut', 'err', 'Collez d\'abord un jeton GitHub.');
   $('publish').disabled = true;
   alertMsg('ghOut', 'info', 'Publication en cours…');
+  if (auto) alertMsg('issueOut2', 'info', 'Publication de la mise à jour…');
   try {
     const registry = {
-      version: 1,
+      version: 2,
       updated: new Date().toISOString(),
       revoked: licenses.filter(l => l.revoked).map(l => l.id),
+      upgrades: upgradeCodes(),
       licenses: licenses.map(l => ({ id: l.id, device: l.device, plan: l.plan, expires: l.expires, issued: l.issued, status: status(l) })),
     };
     const api = `https://api.github.com/repos/${REPO}/contents/${REG_PATH}`;
@@ -396,10 +470,14 @@ $('publish').addEventListener('click', async () => {
     const content = b64(enc.encode(JSON.stringify(registry, null, 2) + '\n'));
     const r = await fetch(api, { method: 'PUT', headers, body: JSON.stringify({ message: `Registre des licences : ${registry.licenses.length} licences, ${registry.revoked.length} révoquée(s)`, content, sha, branch: 'main' }) });
     if (!r.ok) throw new Error((await r.json()).message || r.status);
-    alertMsg('ghOut', 'ok', `Registre publié : ${registry.licenses.length} licences, ${registry.revoked.length} révoquée(s). Les applications le prendront en compte à leur prochaine connexion.`);
-  } catch (e) { alertMsg('ghOut', 'err', 'Échec de la publication : ' + e.message + '. Vérifiez le jeton et ses droits.'); }
+    alertMsg('ghOut', 'ok', `Registre publié : ${registry.licenses.length} licences, ${registry.revoked.length} révoquée(s), ${Object.keys(registry.upgrades).length} mise(s) à jour. Les applications le prendront en compte à leur prochaine connexion.`);
+    if (auto) alertMsg('issueOut2', 'ok', 'Publié : l\'application du client se mettra à jour toute seule à sa prochaine connexion à Internet (quelques minutes).');
+  } catch (e) {
+    alertMsg('ghOut', 'err', 'Échec de la publication : ' + e.message + '. Vérifiez le jeton et ses droits.');
+    if (auto) alertMsg('issueOut2', 'err', 'Publication automatique impossible (' + e.message + ') : envoyez le code au client.');
+  }
   $('publish').disabled = false;
-});
+}
 
 // ---------- Sauvegarde ----------
 $('exportBtn').addEventListener('click', () => {

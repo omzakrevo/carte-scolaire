@@ -154,6 +154,7 @@ Dans **Modèle → Déplacer et redimensionner les éléments** : touchez un él
 - Sans licence, l'application fonctionne en **version d'essai** : les cartes générées portent le filigrane « VERSION D'ESSAI ».
 - Une licence (1, 3, 6 mois, 1 an ou définitive) est un **code signé** lié à l'identifiant de l'appareil. Il est vérifié sur le téléphone, sans base de données : la signature se fait avec une clé privée que seul l'administrateur possède (jamais publiée sur GitHub).
 - **Page administrateur** : https://omzakrevo.github.io/carte-scolaire/admin/ — attribuer, révoquer, codes de réinitialisation du mot de passe, sauvegarde. Elle publie `licenses/registry.json` (révocations) que l'application consulte quand elle a Internet.
+- **Faire évoluer une licence** (liste des licences, bouton **Faire évoluer**) : sur le même appareil, prolonger la durée (elle s'ajoute à la date de fin actuelle) et/ou ajouter des modules. Le nouveau code remplace l'ancien ; s'il y a un jeton GitHub enregistré, il est publié aussitôt dans le registre et **l'application se met à jour toute seule** à sa prochaine connexion à Internet (au démarrage, toutes les 3 heures, ou avec **Licence > Rechercher une mise à jour**). Sans Internet, le client peut toujours coller le nouveau code.
 
 ## Présences (pointage des élèves et des employés)
 

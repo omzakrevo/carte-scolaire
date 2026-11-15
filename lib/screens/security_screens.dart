@@ -422,7 +422,29 @@ class _LicenseScreenState extends State<LicenseScreen> {
         if (ok && allModules.keys.any((m) => !lm.hasModule(m)))
           const Padding(
             padding: EdgeInsets.only(top: 6),
-            child: Text('Pour activer un module verrouillé, contactez le vendeur : il vous enverra un nouveau code.'),
+            child: Text('Pour ajouter un module ou prolonger la licence, contactez le vendeur avec l\'identifiant '
+                'ci-dessous : la licence se met à jour toute seule dès que l\'appareil est connecté à Internet.'),
+          ),
+        if (lm.license != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () async {
+                final r = await lm.refreshRegistry();
+                if (!context.mounted) return;
+                final n = lm.upgradeNotice;
+                if (n != null) lm.upgradeNotice = null;
+                toast(
+                  context,
+                  r == null
+                      ? 'Pas de connexion Internet : réessayez plus tard.'
+                      : (r ? (n ?? 'Licence mise à jour.') : 'Aucune mise à jour : la licence est déjà à jour.'),
+                  error: r == null,
+                );
+              },
+              icon: const Icon(Icons.update),
+              label: const Text('Rechercher une mise à jour de la licence'),
+            ),
           ),
         const SizedBox(height: 20),
         Text('1. Envoyez cet identifiant au vendeur', style: Theme.of(context).textTheme.titleMedium),

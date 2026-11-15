@@ -7,6 +7,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
+import '../card_kinds.dart';
 import 'storage.dart';
 
 /// Clé publique de l'administrateur. Les codes de licence sont signés avec la
@@ -153,7 +154,12 @@ class LicenseManager extends ChangeNotifier {
     loaded = true;
     notifyListeners();
     unawaited(refreshRegistry());
+    // Mises à jour de licence publiées par l'administrateur : vérifiées régulièrement.
+    _registryTimer?.cancel();
+    _registryTimer = Timer.periodic(const Duration(hours: 3), (_) => refreshRegistry());
   }
+
+  Timer? _registryTimer;
 
   Future<void> _save() async {
     final f = await _file();
@@ -223,6 +229,10 @@ class LicenseManager extends ChangeNotifier {
 
   Future<LicenseInfo?> _verify(String raw) => verifyCode(raw, deviceId);
 
+  /// Pour les tests : clé publique de remplacement (codes signés par une clé de test).
+  @visibleForTesting
+  static String? debugPublicKey;
+
   /// Vérifie la signature d'un code et qu'il a été émis pour [device].
   static Future<LicenseInfo?> verifyCode(String raw, String device) async {
     final code = _clean(raw);
@@ -233,7 +243,7 @@ class LicenseManager extends ChangeNotifier {
       final sig = base64Url.decode(base64Url.normalize(parts[1]));
       final ok = await Ed25519().verify(
         utf8.encode(payload),
-        signature: Signature(sig, publicKey: SimplePublicKey(base64Decode(_adminPublicKey), type: KeyPairType.ed25519)),
+        signature: Signature(sig, publicKey: SimplePublicKey(base64Decode(debugPublicKey ?? _adminPublicKey), type: KeyPairType.ed25519)),
       );
       if (!ok) return null;
       final info = LicenseInfo.parse(payload);
@@ -274,20 +284,61 @@ class LicenseManager extends ChangeNotifier {
     return null;
   }
 
+  /// Licence améliorée à distance (prolongée ou avec d'autres modules) : l'administrateur
+  /// publie le nouveau code dans le registre, l'appareil l'applique tout seul.
+  /// Le message de la dernière mise à jour est gardé pour l'afficher une fois.
+  String? upgradeNotice;
+
+  Future<bool> applyUpgrades(Object? upgrades) async {
+    if (upgrades is! Map) return false;
+    final raw = upgrades[deviceId];
+    final codes = raw is List ? raw : (raw == null ? const [] : [raw]);
+    LicenseInfo? best;
+    String? bestCode;
+    for (final c in codes) {
+      final info = await _verify('$c');
+      if (info == null || info.plan == 'RESET' || revoked.contains(info.id)) continue;
+      if (best == null || info.issued.isAfter(best.issued) || (info.issued == best.issued && '$c' != bestCode)) {
+        best = info;
+        bestCode = _clean('$c');
+      }
+    }
+    final cur = license;
+    if (best == null || bestCode == code) return false;
+    if (cur != null && best.issued.isBefore(cur.issued)) return false;
+    if (best.expires != null && DateTime.now().isAfter(best.expires!)) return false;
+    final added = cur == null ? best.modules : best.modules.difference(cur.modules);
+    code = bestCode;
+    license = best;
+    upgradeNotice = [
+      'Licence mise à jour : ${best.lifetime ? 'définitive' : 'valable jusqu\'au ${_fmt(best.expires!)}'}',
+      if (added.isNotEmpty) 'nouveaux modules : ${added.map((m) => allModules[m] ?? m).join(', ')}',
+    ].join(' · ');
+    await _save();
+    notifyListeners();
+    return true;
+  }
+
   /// Récupère la liste des licences révoquées sur GitHub (si Internet est disponible).
-  Future<void> refreshRegistry() async {
+  /// Renvoie vrai si la licence a été mise à jour, null si le registre est injoignable.
+  Future<bool?> refreshRegistry() async {
     try {
-      final r = await http.get(Uri.parse(registryUrl)).timeout(const Duration(seconds: 8));
-      if (r.statusCode != 200) return;
+      final r = await http
+          .get(Uri.parse('$registryUrl?t=${DateTime.now().millisecondsSinceEpoch ~/ 60000}'))
+          .timeout(const Duration(seconds: 8));
+      if (r.statusCode != 200) return null;
       final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
       revoked = {...(j['revoked'] as List? ?? []).map((e) => e.toString())};
+      final upgraded = await applyUpgrades(j['upgrades']);
       registryChecked = DateTime.now();
       final now = DateTime.now();
       if (_lastSeen == null || now.isAfter(_lastSeen!)) _lastSeen = now;
       await _save();
       notifyListeners();
+      return upgraded;
     } catch (_) {
       // Hors ligne : on garde la dernière liste connue.
+      return null;
     }
   }
 }

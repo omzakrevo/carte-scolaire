@@ -148,6 +148,20 @@ class _HomeShellState extends State<HomeShell> {
       _segment = state.segment;
       _key = 'hub';
     }
+    // Licence améliorée à distance : on le signale une fois.
+    final lm = LicenseScope.of(context);
+    final notice = lm.upgradeNotice;
+    if (notice != null) {
+      lm.upgradeNotice = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text(notice),
+          duration: const Duration(seconds: 8),
+          showCloseIcon: true,
+        ));
+      });
+    }
     final attendance = LicenseScope.moduleOf(context, attendanceModule);
     final grades = school && LicenseScope.moduleOf(context, bulletinModule);
     final dest = <_Dest>[
