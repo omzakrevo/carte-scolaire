@@ -68,9 +68,13 @@ jobs:
         id: find
         run: |
           { cat helpers.sh; cat <<'EOS'
-          ENV=$( (find / -xdev -path '*/supabase/docker/.env' 2>/dev/null; $S find / -xdev -path '*/supabase/docker/.env' 2>/dev/null) | grep -v node_modules | head -1)
-          [ -z "$ENV" ] && ENV=$( ($S find / -xdev -name .env -path '*supabase*' 2>/dev/null) | head -1)
-          DB=$($D ps --format '{{.Names}} {{.Image}}' | awk '$2 ~ /supabase\/postgres/ {print $1; exit}')
+          DB=$($D ps --format '{{.Names}}' | grep -x 'supabase-db' | head -1)
+          [ -z "$DB" ] && DB=$($D ps --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^supabase\/postgres:/ {print $1; exit}')
+          # Dossier du docker compose de Supabase (étiquette posée par docker compose).
+          DIR=$($D inspect "$DB" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null)
+          ENV=""
+          [ -n "$DIR" ] && { [ -f "$DIR/.env" ] || $S test -f "$DIR/.env"; } && ENV="$DIR/.env"
+          [ -z "$ENV" ] && ENV=$( ($S find / -xdev -name .env -path '*supabase*' 2>/dev/null) | grep -v node_modules | head -1)
           echo "env=$ENV"
           echo "db=$DB"
           EOS
