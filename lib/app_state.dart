@@ -358,7 +358,8 @@ class AppState extends ChangeNotifier {
     s
       ..raw = null
       ..mask = null
-      ..photoBg = null;
+      ..photoBg = null
+      ..enhanced = false;
     s.photoVersion++;
     if (bytes == null) s.validated = false;
     changed();
@@ -381,6 +382,15 @@ class AppState extends ChangeNotifier {
       ..raw = raw
       ..mask = mask
       ..photoBg = color;
+    s.photoVersion++;
+    changed();
+  }
+
+  /// Mêmes cadrage et fond, pixels retouchés (lumière améliorée).
+  void setPhotoPixels(Student s, Uint8List photo, {Uint8List? raw}) {
+    s.photo = photo;
+    if (raw != null) s.raw = raw;
+    s.enhanced = true;
     s.photoVersion++;
     changed();
   }

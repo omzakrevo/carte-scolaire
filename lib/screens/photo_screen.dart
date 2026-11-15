@@ -13,6 +13,7 @@ import '../models.dart';
 import '../services/background_removal.dart';
 import '../services/license.dart';
 import '../services/phone_bridge.dart';
+import '../services/photo_tools.dart';
 import '../services/photo_utils.dart';
 import '../widgets/common.dart';
 import 'guided_camera_screen.dart';
@@ -384,6 +385,8 @@ class _PhotoScreenState extends State<PhotoScreen> {
       actions,
       const SizedBox(height: 12),
       _PhotoBackgroundBar(student: s),
+      const SizedBox(height: 12),
+      _PhotoToolsBar(student: s),
       const SizedBox(height: 16),
       Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 8, children: [
         if (s.validated)
@@ -708,6 +711,111 @@ class _PhotoBackgroundBar extends StatelessWidget {
                   label: const Text('Remettre le fond d\'origine'),
                 ),
             ]),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Retouches automatiques : recadrage sur le visage et lumière, pour une photo ou toutes.
+class _PhotoToolsBar extends StatelessWidget {
+  final Student student;
+  const _PhotoToolsBar({required this.student});
+
+  Future<void> _run(BuildContext context, PhotoTools tools, bool crop, bool all) async {
+    final s = student;
+    if (all) {
+      final r = crop ? await tools.autoCropAll() : await tools.enhanceAll();
+      if (!context.mounted) return;
+      final rest = r.skipped + r.failed;
+      toast(
+        context,
+        crop
+            ? '${r.done} photo(s) recadrée(s) sur le visage.${rest > 0 ? ' $rest sans visage détecté : recadrez-les à la main.' : ''}'
+            : '${r.done} photo(s) mieux éclairée(s).${r.skipped > 0 ? ' ${r.skipped} déjà correcte(s).' : ''}',
+      );
+    } else {
+      bool ok;
+      try {
+        ok = crop ? await tools.autoCrop(s) : await tools.enhance(s);
+      } catch (e) {
+        if (context.mounted) toast(context, 'Retouche impossible : $e', error: true);
+        return;
+      }
+      if (!context.mounted) return;
+      if (!ok) {
+        toast(context, crop ? 'Visage non détecté : utilisez « Recadrer ».' : 'La lumière de cette photo est déjà correcte.');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tools = PhotoToolsScope.maybeOf(context);
+    if (tools == null || !PhotoTools.supported) return const SizedBox();
+    final state = AppScope.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final photos = state.photoCount;
+    final s = student;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.auto_awesome, color: scheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Retouches automatiques',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              'Recadrage : zoom sur le visage, yeux à la bonne hauteur. Lumière : photos sombres ou ternes éclaircies. '
+              'Sans Internet.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            if (tools.busy) ...[
+              Text('${tools.running} : ${tools.done}/${tools.total}'),
+              const SizedBox(height: 6),
+              LinearProgressIndicator(value: tools.total == 0 ? null : tools.done / tools.total),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(onPressed: tools.cancel, child: const Text('Arrêter')),
+              ),
+            ] else
+              Wrap(spacing: 8, runSpacing: 6, children: [
+                FilledButton.tonalIcon(
+                  onPressed: photos == 0 ? null : () => _run(context, tools, true, true),
+                  icon: const Icon(Icons.center_focus_strong),
+                  label: Text('Recadrer toutes les photos ($photos)'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: photos == 0 ? null : () => _run(context, tools, false, true),
+                  icon: const Icon(Icons.wb_sunny_outlined),
+                  label: const Text('Améliorer la lumière de toutes'),
+                ),
+                if (s.photo != null)
+                  TextButton.icon(
+                    onPressed: () => _run(context, tools, true, false),
+                    icon: const Icon(Icons.face_retouching_natural),
+                    label: const Text('Recadrer celle-ci'),
+                  ),
+                if (s.photo != null && !s.enhanced)
+                  TextButton.icon(
+                    onPressed: () => _run(context, tools, false, false),
+                    icon: const Icon(Icons.light_mode_outlined),
+                    label: const Text('Éclaircir celle-ci'),
+                  ),
+              ]),
           ]),
         ),
       ),

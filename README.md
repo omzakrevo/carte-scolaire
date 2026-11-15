@@ -50,6 +50,14 @@ Dans l'écran **Photos**, choisissez une couleur de fond (bleu, bleu clair, blan
 
 Pour un bon résultat : visage et épaules bien visibles, personne nettement détachée du fond.
 
+## Retouches automatiques des photos
+
+Dans l'écran **Photos**, encadré **Retouches automatiques** (sans Internet) :
+
+- **Recadrer toutes les photos** : le visage et les yeux sont repérés (détecteur YuNet, licence MIT), puis chaque photo est zoomée et recadrée au format de la carte, yeux à la bonne hauteur, à partir de la photo d'origine. Les photos sans visage détecté sont laissées telles quelles.
+- **Améliorer la lumière de toutes** : les photos sombres, trop claires ou ternes sont corrigées (contraste et luminosité mesurés sur le visage), une seule fois par photo ; le fond coloré est conservé.
+- Les mêmes retouches existent pour la photo affichée (**Recadrer celle-ci**, **Éclaircir celle-ci**).
+
 ## Liste des noms depuis une photo
 
 Dans **Liste** (élèves, employés, membres), **Photo d'une liste** : photographiez la feuille de noms (ou choisissez une image), elle est transformée en tableau comme dans Excel :

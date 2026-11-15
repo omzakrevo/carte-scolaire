@@ -33,6 +33,9 @@ class Student {
 
   /// Couleur de fond appliquée à [photo] (null = fond d'origine).
   int? photoBg;
+
+  /// Lumière de la photo déjà améliorée (pour ne pas l'appliquer deux fois).
+  bool enhanced;
   int photoVersion;
   bool validated;
 
@@ -53,6 +56,7 @@ class Student {
     this.original,
     this.photoVersion = 0,
     this.photoBg,
+    this.enhanced = false,
     this.validated = false,
   }) : id = id ?? newId();
 
@@ -87,6 +91,7 @@ class Student {
         'adresse': adresse,
         'photoVersion': photoVersion,
         if (photoBg != null) 'photoBg': photoBg,
+        if (enhanced) 'lum': true,
         'validated': validated,
       };
 
@@ -105,6 +110,7 @@ class Student {
         adresse: j['adresse'] ?? '',
         photoVersion: j['photoVersion'] ?? 0,
         photoBg: j['photoBg'],
+        enhanced: j['lum'] == true,
         validated: j['validated'] ?? false,
       );
 

@@ -14,6 +14,7 @@ import 'widgets/org_info_form.dart';
 import 'screens/projects_screen.dart';
 import 'screens/security_screens.dart';
 import 'services/license.dart';
+import 'services/photo_tools.dart';
 import 'sync/sync_controller.dart';
 import 'screens/students_screen.dart';
 
@@ -52,7 +53,10 @@ void main() {
           controller: school,
           child: PhotoBackgroundScope(
             controller: photoBg,
-            child: SyncScope(controller: sync, child: const CarteScolaireApp()),
+            child: PhotoToolsScope(
+              tools: PhotoTools(state, background: photoBg),
+              child: SyncScope(controller: sync, child: const CarteScolaireApp()),
+            ),
           ),
         ),
       ),

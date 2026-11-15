@@ -32,7 +32,7 @@ String photoBackgroundName(int color) {
   return 'Personnalisée';
 }
 
-/// Entrée du modèle : image ramenée à ~512 px (multiples de 32), normalisée dans [-1, 1], format NCHW.
+/// Entrée du modèle : image ramenée à ~416 px (multiples de 32), normalisée dans [-1, 1], format NCHW.
 class ModelInput {
   final Float32List data;
   final int width;
@@ -42,7 +42,7 @@ class ModelInput {
   const ModelInput(this.data, this.width, this.height, this.srcWidth, this.srcHeight);
 }
 
-ModelInput prepareModelInput(Uint8List photo, {int target = 512}) {
+ModelInput prepareModelInput(Uint8List photo, {int target = 416}) {
   final decoded = img.decodeImage(photo);
   if (decoded == null) throw const FormatException('Image illisible');
   final src = img.bakeOrientation(decoded);
@@ -126,6 +126,12 @@ Future<Uint8List> _maskIsolate(Float32List out, int w, int h, int sw, int sh) =>
     compute((List a) => maskFromOutput(a[0] as Float32List, a[1] as int, a[2] as int, a[3] as int, a[4] as int),
         [out, w, h, sw, sh]);
 
+Future<double> _coverageIsolate(Uint8List mask) => compute(maskCoverage, mask);
+
+/// Réglages du moteur : plusieurs cœurs du processeur pour aller plus vite.
+OrtSessionOptions ortOptions() =>
+    OrtSessionOptions(intraOpNumThreads: math.max(2, math.min(4, Platform.numberOfProcessors)));
+
 Future<Uint8List> compositeIsolate(Uint8List photo, Uint8List mask, int color) =>
     compute((List a) => compositeBackground(a[0] as Uint8List, a[1] as Uint8List, a[2] as int), [photo, mask, color]);
 
@@ -139,7 +145,7 @@ class ModnetSegmenter {
   static bool get supported =>
       !kIsWeb && (Platform.isAndroid || Platform.isWindows || Platform.isIOS || Platform.isMacOS || Platform.isLinux);
 
-  static Future<OrtSession> _load() => _session ??= OnnxRuntime().createSessionFromAsset('assets/models/modnet.onnx').catchError((e) {
+  static Future<OrtSession> _load() => _session ??= OnnxRuntime().createSessionFromAsset('assets/models/modnet.onnx', options: ortOptions()).catchError((e) {
         _session = null;
         throw e;
       });
@@ -246,7 +252,7 @@ class PhotoBackgroundController extends ChangeNotifier {
           var mask = s.raw != null ? s.mask : null;
           if (mask == null) {
             mask = await segmenter(raw);
-            if (maskCoverage(mask) < 0.03) {
+            if (await _coverageIsolate(mask) < 0.03) {
               throw const FormatException('personne non détectée');
             }
           }
