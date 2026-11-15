@@ -30,10 +30,22 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Clé SSH
+        env:
+          RAW: ${{ secrets.VPS_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          # Clé collée dans GitHub : on répare les retours à la ligne (Windows, ou tout sur une ligne).
+          python3 - > ~/.ssh/id_ed25519 <<'PY'
+          import os, re
+          k = os.environ['RAW'].replace('\r', '').strip()
+          m = re.search(r'-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----', k, re.S)
+          if m:
+              body = re.sub(r'\s+', '', m.group(2))
+              k = '-----BEGIN %s-----\n%s\n-----END %s-----' % (m.group(1), '\n'.join(body[i:i+70] for i in range(0, len(body), 70)), m.group(1))
+          print(k)
+          PY
           chmod 600 ~/.ssh/id_ed25519
+          echo "Clé publique correspondante : $(ssh-keygen -y -f ~/.ssh/id_ed25519 2>&1 | cut -c1-60)…"
           ssh-keyscan -T 15 "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           # Sur le serveur : docker et lecture des fichiers, avec sudo seulement si nécessaire.
           cat > helpers.sh <<'EOF'
