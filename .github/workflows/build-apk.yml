@@ -59,6 +59,25 @@ jobs:
           flutter-version: 3.47.7
           cache: true
       - run: flutter pub get
+      # ONNX Runtime pour Windows : téléchargé à l'avance, avec reprises (le téléchargement
+      # fait par le plugin pendant la compilation échoue parfois).
+      - name: ONNX Runtime (Windows)
+        shell: pwsh
+        run: |
+          $cm = Get-Content 'windows\flutter\ephemeral\.plugin_symlinks\flutter_onnxruntime\windows\CMakeLists.txt' -Raw -ErrorAction SilentlyContinue
+          $v = [regex]::Match($cm, 'set\(ONNXRUNTIME_VERSION "([0-9.]+)"\)').Groups[1].Value
+          if (-not $v) { $v = '1.28.3' }
+          Write-Host "ONNX Runtime $v"
+          $dir = 'build\windows\x64\plugins\flutter_onnxruntime\onnxruntime'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $zip = Join-Path $dir 'onnxruntime.zip'
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v$v/onnxruntime-win-x64-$v.zip"
+          for ($i = 1; $i -le 5; $i++) {
+            try { Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing; break } catch { Write-Host "Essai $i échoué : $_"; Start-Sleep -Seconds (10 * $i) }
+          }
+          Expand-Archive -Path $zip -DestinationPath $dir -Force
+          Remove-Item $zip
+          Get-ChildItem $dir
       - name: Compilation Windows
         run: flutter build windows --release
       - name: Version portable (ZIP)
