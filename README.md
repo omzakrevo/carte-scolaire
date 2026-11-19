@@ -58,6 +58,18 @@ Dans l'écran **Photos**, encadré **Retouches automatiques** (sans Internet) :
 - **Améliorer la lumière de toutes** : les photos sombres, trop claires ou ternes sont corrigées (contraste et luminosité mesurés sur le visage), une seule fois par photo ; le fond coloré est conservé.
 - Les mêmes retouches existent pour la photo affichée (**Recadrer celle-ci**, **Éclaircir celle-ci**).
 
+## Modifier la liste dans Excel sans perdre les photos
+
+- **Liste > Exporter la liste** : toutes les fiches en Excel, dans l'ordre de l'application, avec une colonne « Identifiant (ne pas modifier) ».
+- Corrigez ou complétez le fichier (ordre des lignes libre), puis **Importer Excel / CSV > Mettre à jour** : chaque ligne retrouve sa fiche (identifiant, sinon matricule, sinon nom et prénom). Seules les informations changées sont modifiées ; photos, fonds, cartes validées et ordre de la liste restent intacts. Une case vidée ne vide pas la fiche, rien n'est supprimé, les nouvelles lignes sont ajoutées à la fin. Un résumé (modifiées, nouvelles, inchangées) s'affiche avant.
+- « Remplacer » efface la liste et ses photos (confirmation demandée).
+
+## Pour tout le monde
+
+**Liste > Pour tout le monde** :
+- **Matricules automatiques** : début du matricule (ex. `2026-`), nombre de chiffres, numérotation par classe (`2026-6A-001`), dans l'ordre de la liste ; un numéro déjà pris n'est jamais repris. Option : renuméroter aussi ceux qui ont déjà un matricule, et **matricule automatique pour chaque nouvelle fiche** (saisie, import, photo d'une liste).
+- **Remplir un champ** : la même valeur pour toutes les fiches (ou une classe) — personne à prévenir, classe, lieu, adresse… — seulement là où la case est vide, ou partout.
+
 ## Liste des noms depuis une photo
 
 Dans **Liste** (élèves, employés, membres), **Photo d'une liste** : photographiez la feuille de noms (ou choisissez une image), elle est transformée en tableau comme dans Excel :

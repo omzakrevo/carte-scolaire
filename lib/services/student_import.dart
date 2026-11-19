@@ -8,6 +8,9 @@ import '../models.dart';
 
 class ImportResult {
   final List<Student> students;
+
+  /// Champs présents dans le fichier (clés : nom, prenom, classe…).
+  Set<String> fields = {};
   final List<String> recognizedColumns;
   final List<String> warnings;
   ImportResult(this.students, this.recognizedColumns, this.warnings);
@@ -139,6 +142,8 @@ String _norm(String s) {
 String? studentFieldFor(String header) {
   final h = _norm(header);
   if (h.isEmpty) return null;
+  // Colonne ajoutée par « Exporter la liste » : retrouve la fiche lors du réimport.
+  if (h.startsWith('identifiant')) return 'id';
   bool has(String k) => h.contains(k);
   final nomWord = RegExp(r'(^| )noms?( |$)').hasMatch(h);
   if ((nomWord && has('prenom')) || has('nom complet') || h == 'eleve' || h == 'nom de l eleve') {
@@ -230,17 +235,28 @@ ImportResult _mapRows(List<List<String>> rows) {
     final r = rows[i];
     if (r.every((c) => c.trim().isEmpty)) continue;
     final s = Student();
+    s.id = '';
     columns.forEach((col, field) {
-      if (col < r.length) applyStudentField(s, field, r[col]);
+      if (col >= r.length) return;
+      if (field == 'id') {
+        s.id = r[col].trim();
+      } else {
+        applyStudentField(s, field, r[col]);
+      }
     });
+    if (s.id.isEmpty) s.id = '${Student.newId()}${students.length}';
     if (s.nom.isEmpty && s.prenom.isEmpty && s.matricule.isEmpty) continue;
     students.add(s);
   }
+  final fields = <String>{
+    for (final f in columns.values)
+      if (f == 'nomComplet') ...['nom', 'prenom'] else if (f != 'id') f,
+  };
   return ImportResult(
     students,
-    columns.values.map((f) => studentFieldLabels[f] ?? f).toList(),
+    columns.values.where((f) => f != 'id').map((f) => studentFieldLabels[f] ?? f).toList(),
     warnings,
-  );
+  )..fields = fields;
 }
 
 /// Range une valeur lue (Excel, feuille photographiée…) dans le bon champ de la fiche.

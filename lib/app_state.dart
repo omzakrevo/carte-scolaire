@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'designs/card_designs.dart';
 import 'card_kinds.dart';
 import 'models.dart';
+import 'services/list_tools.dart';
 import 'services/storage.dart';
 
 /// État global de l'application (modèle, école, élèves) avec sauvegarde auto.
@@ -303,6 +304,7 @@ class AppState extends ChangeNotifier {
       currentIndex = 0;
     }
     students.addAll(list);
+    _autoMatricules(list);
     changed();
   }
 
@@ -312,6 +314,35 @@ class AppState extends ChangeNotifier {
       students[i] = s;
     } else {
       students.add(s);
+      _autoMatricules([s]);
+    }
+    changed();
+  }
+
+  /// Matricule automatique pour les nouvelles fiches qui n'en ont pas (si activé).
+  void _autoMatricules(List<Student> added) {
+    if (!school.matAuto) return;
+    final plan = planMatricules(students, MatriculeRule.of(school), only: added);
+    plan.forEach((st, m) => st.matricule = m);
+  }
+
+  /// Mise à jour depuis un fichier modifié (voir [planMerge]).
+  void applyMerge(MergePlan plan) {
+    plan.apply(students);
+    _autoMatricules(plan.added);
+    changed();
+  }
+
+  /// Donne les matricules prévus (voir [planMatricules]).
+  void setMatricules(Map<Student, String> plan) {
+    plan.forEach((s, m) => s.matricule = m);
+    changed();
+  }
+
+  /// Met la même valeur dans un champ pour plusieurs fiches.
+  void fillField(List<Student> list, String field, String value) {
+    for (final s in list) {
+      setFieldValue(s, field, value.trim());
     }
     changed();
   }

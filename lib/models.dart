@@ -157,6 +157,13 @@ class SchoolInfo {
   String website;
   List<Uint8List> gallery;
 
+  /// Matricules automatiques : préfixe, nombre de chiffres, numérotation par classe,
+  /// et attribution aux nouvelles fiches.
+  String matPrefix;
+  int matDigits;
+  bool matPerClass;
+  bool matAuto;
+
   SchoolInfo({
     this.name = 'Complexe Scolaire Les Étoiles',
     this.shortName = 'C.S. LES ÉTOILES',
@@ -176,6 +183,10 @@ class SchoolInfo {
     this.services = '',
     this.website = '',
     List<Uint8List>? gallery,
+    this.matPrefix = '',
+    this.matDigits = 3,
+    this.matPerClass = false,
+    this.matAuto = false,
   })  : schoolYear = schoolYear ?? defaultYear(),
         gallery = gallery ?? [];
 
@@ -213,6 +224,10 @@ class SchoolInfo {
         'services': services,
         'website': website,
         'gallery': gallery.map(base64Encode).toList(),
+        'matPrefix': matPrefix,
+        'matDigits': matDigits,
+        'matPerClass': matPerClass,
+        'matAuto': matAuto,
       };
 
   factory SchoolInfo.fromJson(Map<String, dynamic> j) => SchoolInfo(
@@ -234,6 +249,10 @@ class SchoolInfo {
         services: j['services'] ?? '',
         website: j['website'] ?? '',
         gallery: (j['gallery'] as List? ?? []).map((e) => base64Decode(e as String)).toList(),
+        matPrefix: j['matPrefix'] ?? '',
+        matDigits: (j['matDigits'] as num?)?.toInt() ?? 3,
+        matPerClass: j['matPerClass'] ?? false,
+        matAuto: j['matAuto'] ?? false,
       );
 }
 

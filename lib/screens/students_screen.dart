@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../card_kinds.dart';
 import '../models.dart';
+import '../services/list_tools.dart';
 import '../services/student_import.dart';
+import 'list_tools_dialogs.dart';
 import 'sheet_import_screen.dart';
 import '../widgets/common.dart';
 
@@ -43,25 +45,60 @@ class _StudentsScreenState extends State<StudentsScreen> {
             error: true);
         return;
       }
-      var replace = false;
       if (state.students.isNotEmpty) {
+        final plan = planMerge(state.students, res.students, res.fields);
+        final people = kindById(state.template.kind).people.toLowerCase();
+        final known = plan.changes.length + plan.unchanged;
         final choice = await showDialog<String>(
           context: context,
           builder: (c) => AlertDialog(
-            title: Text('${res.students.length} ${kindById(state.template.kind).people.toLowerCase()} trouvés'),
-            content: Text(
-                'La liste contient déjà ${state.students.length} fiches. Voulez-vous ajouter les nouveaux à la suite ou remplacer la liste ?'),
+            title: Text('${res.students.length} $people dans le fichier'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('La liste contient déjà ${state.students.length} fiches.'),
+                const SizedBox(height: 10),
+                if (known > 0) ...[
+                  Text('Mettre à jour (recommandé) :', style: Theme.of(c).textTheme.titleSmall),
+                  Text('• ${plan.changes.length} fiche(s) modifiée(s)\n'
+                      '• ${plan.added.length} nouvelle(s), ajoutée(s) à la fin\n'
+                      '• ${plan.unchanged} inchangée(s)\n'
+                      'Photos, cartes validées et ordre de la liste sont conservés ; rien n\'est supprimé.'),
+                  const SizedBox(height: 10),
+                ],
+                Text('Remplacer efface la liste actuelle et ses ${state.photoCount} photo(s).',
+                    style: TextStyle(color: Theme.of(c).colorScheme.error, fontSize: 12)),
+              ]),
+            ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
-              OutlinedButton(onPressed: () => Navigator.pop(c, 'replace'), child: const Text('Remplacer')),
-              FilledButton(onPressed: () => Navigator.pop(c, 'add'), child: const Text('Ajouter')),
+              TextButton(onPressed: () => Navigator.pop(c, 'replace'), child: const Text('Remplacer')),
+              OutlinedButton(onPressed: () => Navigator.pop(c, 'add'), child: const Text('Tout ajouter à la suite')),
+              if (known > 0)
+                FilledButton(onPressed: () => Navigator.pop(c, 'merge'), child: const Text('Mettre à jour')),
             ],
           ),
         );
         if (choice == null) return;
-        replace = choice == 'replace';
+        if (choice == 'replace' &&
+            state.photoCount > 0 &&
+            mounted &&
+            !await confirm(context, 'Effacer les photos ?',
+                'Les ${state.photoCount} photo(s) déjà prises seront perdues.',
+                ok: 'Remplacer quand même')) {
+          return;
+        }
+        if (choice == 'merge') {
+          state.applyMerge(plan);
+          if (!mounted) return;
+          toast(context,
+              'Liste mise à jour : ${plan.changes.length} fiche(s) modifiée(s), ${plan.added.length} ajoutée(s).');
+          return;
+        }
+        state.addStudents(res.students, replace: choice == 'replace');
+      } else {
+        state.addStudents(res.students);
       }
-      state.addStudents(res.students, replace: replace);
       if (!mounted) return;
       toast(context,
           '${res.students.length} fiches importées. Colonnes reconnues : ${res.recognizedColumns.join(', ')}.${res.warnings.isEmpty ? '' : ' ${res.warnings.join(' ')}'}');
@@ -196,6 +233,32 @@ class _StudentsScreenState extends State<StudentsScreen> {
           onPressed: () => _numberedBadges(state),
           icon: const Icon(Icons.format_list_numbered),
           label: const Text('Créer des badges numérotés'),
+        ),
+      if (state.students.isNotEmpty)
+        OutlinedButton.icon(
+          onPressed: () => exportList(context, state),
+          icon: const Icon(Icons.file_download_outlined),
+          label: const Text('Exporter la liste'),
+        ),
+      if (state.students.isNotEmpty)
+        MenuAnchor(
+          builder: (c, ctl, _) => OutlinedButton.icon(
+            onPressed: () => ctl.isOpen ? ctl.close() : ctl.open(),
+            icon: const Icon(Icons.groups_outlined),
+            label: const Text('Pour tout le monde'),
+          ),
+          menuChildren: [
+            MenuItemButton(
+              leadingIcon: const Icon(Icons.pin_outlined),
+              onPressed: () => showMatriculeDialog(context, state, onlyClass: _class),
+              child: const Text('Matricules automatiques…'),
+            ),
+            MenuItemButton(
+              leadingIcon: const Icon(Icons.edit_note),
+              onPressed: () => showFillDialog(context, state, onlyClass: _class),
+              child: Text('Remplir « ${fieldLabel('contact', template: state.template)} » ou un autre champ…'),
+            ),
+          ],
         ),
       OutlinedButton.icon(
         onPressed: _downloadTemplate,
