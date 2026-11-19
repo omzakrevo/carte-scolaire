@@ -71,12 +71,34 @@ jobs:
           $dir = 'build\windows\x64\plugins\flutter_onnxruntime\onnxruntime'
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
           $zip = Join-Path $dir 'onnxruntime.zip'
+          $ok = $false
           $url = "https://github.com/microsoft/onnxruntime/releases/download/v$v/onnxruntime-win-x64-$v.zip"
-          for ($i = 1; $i -le 5; $i++) {
-            try { Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing; break } catch { Write-Host "Essai $i échoué : $_"; Start-Sleep -Seconds (10 * $i) }
+          for ($i = 1; $i -le 2 -and -not $ok; $i++) {
+            try { Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing; $ok = $true } catch { Write-Host "GitHub, essai $i : $_"; Start-Sleep -Seconds 10 }
           }
-          Expand-Archive -Path $zip -DestinationPath $dir -Force
-          Remove-Item $zip
+          if ($ok) {
+            Expand-Archive -Path $zip -DestinationPath $dir -Force
+          } else {
+            # Repli : paquet NuGet officiel (même version si publiée, sinon la même série 1.28).
+            $target = Join-Path $dir "onnxruntime-win-x64-$v"
+            $done = $false
+            foreach ($nv in @($v, '1.28.0')) {
+              if ($done) { break }
+              try {
+                Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/$nv/microsoft.ml.onnxruntime.$nv.nupkg" -OutFile $zip -UseBasicParsing
+                $tmp = Join-Path $dir 'nuget'
+                Expand-Archive -Path $zip -DestinationPath $tmp -Force
+                New-Item -ItemType Directory -Force -Path "$target\include", "$target\lib" | Out-Null
+                Copy-Item "$tmp\build\native\include\*" "$target\include" -Recurse -Force
+                Copy-Item "$tmp\runtimes\win-x64\native\*" "$target\lib" -Force
+                Remove-Item $tmp -Recurse -Force
+                Write-Host "ONNX Runtime $nv (NuGet) installé dans $target"
+                $done = $true
+              } catch { Write-Host "NuGet $nv : $_" }
+            }
+            if (-not $done) { throw 'ONNX Runtime introuvable' }
+          }
+          Remove-Item $zip -ErrorAction SilentlyContinue
           Get-ChildItem $dir
       - name: Compilation Windows
         run: flutter build windows --release
